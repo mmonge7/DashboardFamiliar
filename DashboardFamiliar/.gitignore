@@ -1,0 +1,10 @@
+# Nada privado en el repositorio: configuración real, secretos y estado del servidor
+servidor/config/familia.json
+servidor/config/compra-ignorar.txt
+servidor/secretos/*
+!servidor/secretos/*.example
+servidor/estado/
+servidor/homeassistant/
+__pycache__/
+.DS_Store
+node_modules/

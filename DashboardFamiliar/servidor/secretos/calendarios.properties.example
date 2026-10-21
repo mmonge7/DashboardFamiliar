@@ -1,0 +1,10 @@
+# Copia como secretos/calendarios.properties (chmod 600; NUNCA en git).
+# Una línea por cada clave de «calendarios» en config/familia.json:
+#   <clave>.ics = dirección secreta en formato iCal
+#   (Google Calendar en el ordenador → Configuración → el calendario → Integrar el calendario →
+#    «Dirección secreta en formato iCal»)
+familia.ics=https://calendar.google.com/calendar/ical/<ID-CALENDARIO>/private-<CLAVE-SECRETA>/basic.ics
+trabajo.ics=https://calendar.google.com/calendar/ical/<ID-CALENDARIO>/private-<CLAVE-SECRETA>/basic.ics
+#cole.ics=https://calendar.google.com/calendar/ical/<ID-CALENDARIO>/private-<CLAVE-SECRETA>/basic.ics
+# Calendarios públicos también valen (p. ej. el de tu equipo de fútbol)
+#deporte.ics=https://ics.ecal.com/ecal-sub/<...>.ics

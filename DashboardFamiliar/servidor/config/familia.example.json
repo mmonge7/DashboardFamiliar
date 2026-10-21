@@ -1,0 +1,46 @@
+{
+  "_nota": "Configuración del servidor de Casa. Cópialo como config/familia.json (git lo ignora). Las claves que empiezan por «_» son notas. Los secretos NO van aquí: van en secretos/ (ver servidor/README.md). Los valores son de EJEMPLO.",
+
+  "zona_horaria": "Europe/Madrid",
+
+  "rutas": {
+    "_nota": "Las rutas relativas se toman desde «base». En Docker, /familia es esta carpeta servidor/.",
+    "base": "/familia",
+    "app_token": "secretos/app.token",
+    "calendarios_secretos": "secretos/calendarios.properties",
+    "ha_token": "secretos/ha.token",
+    "compra_json": "estado/compra.json",
+    "compra_sync_estado": "estado/compra-sync.json",
+    "compra_frecuentes": "estado/compra-frecuentes.json",
+    "_nota_compra_ignorar": "Un producto por línea: nunca se ofrecen como «habituales» (bromas a Alexa, errores de reconocimiento).",
+    "compra_ignorar": "config/compra-ignorar.txt"
+  },
+
+  "api": {
+    "_nota": "Puerto local de la API (solo 127.0.0.1) y desde qué webs puede llamarla el navegador: la dirección de GitHub Pages de la app.",
+    "puerto": 8125,
+    "origenes": ["https://mmonge7.github.io"]
+  },
+
+  "home_assistant": {
+    "_nota": "Home Assistant en el mismo equipo. Las entidades salen de Herramientas para desarrolladores → Estados. compra_bring: la lista de Bring!; compra_alexa: la lista de la compra de Alexa (integración Alexa Media Player). Si no usas Alexa, deja compra_alexa vacío y no actives compra_sync.",
+    "url": "http://127.0.0.1:8123",
+    "compra_bring": "todo.bring_lista_de_la_compra",
+    "compra_alexa": "todo.alexa_lista_de_la_compra",
+    "tareas_todoist": "todo.casa"
+  },
+
+  "_nota_listas_marco": "Listas que verá la app, en este orden. La primera es «la lista de la compra» (se puede tachar desde la app); el resto se enseñan como tareas. «entidad»: una entidad todo.* o una clave de «home_assistant».",
+  "listas_marco": [
+    {"entidad": "compra_bring", "nombre": "Lista de la compra", "color": "#2E7D5B"},
+    {"entidad": "tareas_todoist", "nombre": "Tareas de casa", "color": "#3B6FD8"}
+  ],
+
+  "calendarios": {
+    "_nota": "Calendarios que verá la app: clave → nombre, color y papel (events = citas, menu = menú del cole: se enseña aparte). La dirección iCal secreta de cada uno va en secretos/calendarios.properties como «<clave>.ics=...».",
+    "familia": {"nombre": "Familia", "color": "#3B6FD8", "papel": "events"},
+    "trabajo": {"nombre": "Trabajo", "color": "#7A5AC8", "papel": "events"},
+    "cole": {"nombre": "Cole", "color": "#2E8B6A", "papel": "menu"},
+    "deporte": {"nombre": "Deporte", "color": "#D98A1E", "papel": "events"}
+  }
+}

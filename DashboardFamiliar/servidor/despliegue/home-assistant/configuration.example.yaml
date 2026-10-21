@@ -1,0 +1,9 @@
+# Añade esto a homeassistant/configuration.yaml (se crea al arrancar Home Assistant por primera vez).
+# Home Assistant escucha SOLO en 127.0.0.1; para abrirlo desde tu ordenador o el móvil se usa
+# `tailscale serve` (ver README), que llega como proxy desde 127.0.0.1.
+http:
+  server_host: 127.0.0.1
+  server_port: 8123
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1

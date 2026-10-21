@@ -1,0 +1,9 @@
+# Configuración y secretos reales: solo se suben los *.example
+config/familia.json
+config/compra-ignorar.txt
+secretos/*
+!secretos/*.example
+estado/
+homeassistant/
+tailscale/
+__pycache__/
