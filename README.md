@@ -1,8 +1,8 @@
 # Casa: panel familiar para iPad y móvil 🏠
 
-Una app para tener **la casa de un vistazo**: el calendario de toda la familia, el **precio de la luz** con las mejores
-horas para cargar el coche o poner el lavavajillas (y cuánto se ahorra), y la **lista de la compra** que se llena
-desde Bring! o por voz con Alexa. Pensada para un **iPad colgado en la pared**, y también para el iPhone o el Android
+Una app para tener **la casa de un vistazo**: el calendario de toda la familia (también los de Apple), el **menú**
+de comida y cena, lo que cuesta **la luz con tu tarifa** y las mejores horas para cargar el coche o poner el
+lavavajillas, y la **lista de la compra** compartida. Pensada para un **iPad colgado en la pared**, y también para el iPhone o el Android
 de cada uno.
 
 Es una **web app instalable (PWA)**: se abre en Safari y se añade a la pantalla de inicio. **Sin App Store, sin Mac,
@@ -11,11 +11,12 @@ sin cuenta de desarrollador y sin ningún coste.** La misma app sirve en iPad, i
 | | |
 |---|---|
 | ![Hoy en el iPad](docs/capturas/ipad-hoy.png) **Hoy** | ![Precio de la luz](docs/capturas/ipad-luz.png) **Luz** |
-| ![Calendario de pared](docs/capturas/ipad-calendario.png) **Calendario de pared** | ![Compra y tareas](docs/capturas/ipad-compra.png) **Compra y tareas** |
+| ![Menú de la semana](docs/capturas/ipad-menu.png) **Menú** | ![Calendario de pared](docs/capturas/ipad-calendario.png) **Calendario de pared** |
+| ![Compra y tareas](docs/capturas/ipad-compra.png) **Compra y tareas** | |
 
-<p align="center"><img src="docs/capturas/iphone-hoy.png" width="240" alt="Hoy en el iPhone, modo oscuro"> <img src="docs/capturas/iphone-luz.png" width="240" alt="Luz en el iPhone, modo oscuro"></p>
+<p align="center"><img src="docs/capturas/iphone-hoy.png" width="240" alt="Hoy en el iPhone, modo oscuro"> <img src="docs/capturas/iphone-menu.png" width="240" alt="Menú en el iPhone, modo oscuro"> <img src="docs/capturas/iphone-luz.png" width="240" alt="Luz en el iPhone, modo oscuro"></p>
 
-> Las capturas usan los datos de ejemplo que trae la app mientras no tiene servidor: nombres y citas inventados.
+> Las capturas usan los datos de ejemplo que trae la app mientras no está conectada: nombres, citas y platos inventados.
 
 ## Qué hace
 
@@ -24,10 +25,13 @@ sin cuenta de desarrollador y sin ningún coste.** La misma app sirve en iPad, i
   que falta en la compra.
 - **Calendario de pared:** cinco semanas de lunes a domingo con el tiempo de cada día. Tocar una cita enseña el
   detalle.
-- **Luz:** el PVPC de hoy (y de mañana desde las 20:30) por horas, la hora más barata y la más cara, y para cada
-  aparato el mejor tramo y lo que se ahorra frente a ponerlo ahora. Los aparatos y su consumo se cambian en Ajustes.
-- **Compra y tareas:** tocar un producto lo tacha (en Bring!, y de ahí en Alexa), se puede deshacer, se añaden
-  productos y los habituales están a un toque. Las tareas de casa de Todoist aparecen con su fecha.
+- **Menú:** la comida y la cena de cada día de la semana; se toca un día para escribirlo (sugiere platos ya usados).
+  En «Hoy» aparece el menú del día y, por la tarde, la comida de mañana.
+- **Luz:** con **tu tarifa** (precio único, tres tramos o PVPC): lo que pagas ahora con impuestos, cuándo cambia de
+  tramo, las mejores horas para cada aparato y lo que cuesta. Trae ya rellenas Repsol (precio único), Nufri e
+  Iberdrola, y el PVPC del día como referencia.
+- **Compra y tareas:** tocar un producto lo tacha, se puede deshacer, se añaden productos y los habituales están a un
+  toque. Con el servidor de casa, además, se sincroniza con Bring!, Alexa y Todoist.
 - **De noche** se queda en un reloj tenue; funciona **sin conexión** con la última copia y mantiene la pantalla
   encendida.
 
@@ -42,10 +46,12 @@ sin cuenta de desarrollador y sin ningún coste.** La misma app sirve en iPad, i
    └─▶ Red Eléctrica (precio de la luz, directo)          └─ Red Eléctrica (por si el navegador no llega)
 ```
 
-- **Sin servidor** la app ya enseña el tiempo y el precio de la luz reales, con calendario y compra de ejemplo.
-- **Con el servidor** (en una Raspberry Pi, un PC viejo o un mini PC) aparecen tus calendarios y tu lista de la
-  compra. Los secretos (direcciones iCal, tokens) viven solo en el servidor; nada se abre a Internet: el iPad llega
-  por la red privada de Tailscale. Guía completa: [`servidor/README.md`](servidor/README.md).
+- **Sin conexión** la app ya enseña el tiempo y la luz con tu tarifa; el calendario es de ejemplo y el menú y la
+  compra se guardan solo en ese dispositivo.
+- **Con Cloudflare (gratis, sin aparatos):** tus calendarios de Apple o Google, y el menú y la compra compartidos
+  entre todos los dispositivos. Guía: [`cloudflare/README.md`](cloudflare/README.md).
+- **Con el servidor de casa (opcional, más adelante):** lo mismo más Alexa, Bring!, Todoist y aparatos mediante Home
+  Assistant, en un equipo siempre encendido. Guía: [`servidor/README.md`](servidor/README.md).
 
 ## Puesta en marcha
 
@@ -71,20 +77,25 @@ En Android: Chrome → menú → **Instalar aplicación**.
 - **Que no se apague:** Ajustes → Pantalla y brillo → Bloqueo automático → Nunca (y deja el iPad cargando).
 - La app oscurece la pantalla de noche (horario en Ajustes de la app); tocarla la despierta un minuto.
 
-### 4. Conectar tus datos (opcional)
+### 4. Tu tarifa de la luz
 
-Monta el servidor siguiendo [`servidor/README.md`](servidor/README.md) y pon su dirección y su token en Ajustes.
+En **Ajustes → Tu tarifa de la luz** elige la tuya (o escribe los precios de tu factura, sin impuestos).
+
+### 5. Conectar tus calendarios de Apple, el menú y la compra
+
+Sigue [`cloudflare/README.md`](cloudflare/README.md): unos 15 minutos, gratis y sin aparatos.
 
 ## Estructura
 
 ```
 app/                 La app (HTML, CSS y JavaScript sin compilar; se publica tal cual)
 ├── index.html, manifest.webmanifest, sw.js   página, instalación y modo sin conexión
-├── js/data/         calendario (ical.js), luz (REE), tiempo (Open-Meteo), compra
-├── js/views/        Hoy, Calendario, Luz, Compra, Ajustes
+├── js/data/         calendario (ical.js), luz (REE) y tarifa, tiempo (Open-Meteo), menú, compra
+├── js/views/        Hoy, Calendario, Menú, Luz, Compra, Ajustes
 ├── vendor/          ical.js (MPL-2.0)
 └── fonts/           Bricolage Grotesque y Atkinson Hyperlegible (OFL)
-servidor/            API, scripts de la compra y despliegue con Docker + Tailscale
+cloudflare/          Worker gratuito: calendarios de Apple/Google, menú y compra compartidos
+servidor/            Alternativa en casa: API, Home Assistant, Docker y Tailscale
 docs/capturas/       capturas del README
 ```
 
@@ -94,7 +105,8 @@ Para probarla en el ordenador: `cd app && python3 -m http.server 8000` y abre `h
 
 - Nada de la familia está en este repositorio: la configuración real y los secretos están en el servidor, ignorados
   por git (`.gitignore`), y los ajustes de cada dispositivo se guardan solo en ese dispositivo.
-- La dirección del servidor y el token se escriben a mano en Ajustes; no van en la app publicada.
+- La dirección de la conexión y el token se escriben a mano en Ajustes; no van en la app publicada.
+- Los enlaces de los calendarios se guardan como secretos en Cloudflare (o en el servidor de casa), nunca en la app.
 
 ## Créditos y licencia
 

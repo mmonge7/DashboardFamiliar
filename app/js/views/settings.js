@@ -3,6 +3,7 @@ import { h, toast } from '../ui.js';
 import { getSettings, saveSettings, DEFAULTS } from '../store.js';
 import { searchPlace } from '../data/weather.js';
 import { server } from '../api.js';
+import { PRESETS } from '../data/tariff.js';
 
 function field(label, input, hint) {
   const id = `f-${Math.random().toString(36).slice(2, 8)}`;
@@ -39,6 +40,34 @@ export function renderSettings(state, rerender, reload) {
   };
   placeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); findPlace(); } });
 
+  // Tarifa
+  const tar = { tipo: 'pvpc', ...s.tarifa };
+  const num = (v) => h('input', { type: 'number', min: 0, max: 2, step: 0.000001, value: v ?? '', inputmode: 'decimal' });
+  const tNombre = h('input', { type: 'text', value: tar.nombre || '' });
+  const tTipo = h('select', {},
+    h('option', { value: 'unico', selected: tar.tipo === 'unico' }, 'Precio único (igual a todas horas)'),
+    h('option', { value: 'tramos', selected: tar.tipo === 'tramos' }, 'Tres tramos (punta, llano, valle)'),
+    h('option', { value: 'pvpc', selected: tar.tipo === 'pvpc' }, 'PVPC (precio regulado por horas)'));
+  const tUnico = num(tar.unico), tPunta = num(tar.punta), tLlano = num(tar.llano), tValle = num(tar.valle);
+  const unicoBox = h('div', {}, field('Precio (€/kWh, sin impuestos)', tUnico));
+  const tramosBox = h('div', { class: 'field-row', style: { gridTemplateColumns: 'repeat(3, 1fr)' } },
+    field('Punta', tPunta), field('Llano', tLlano), field('Valle', tValle));
+  const syncTipo = () => {
+    unicoBox.hidden = tTipo.value !== 'unico';
+    tramosBox.hidden = tTipo.value !== 'tramos';
+  };
+  tTipo.addEventListener('change', syncTipo);
+  syncTipo();
+  const presetButtons = h('div', { class: 'actions' }, Object.entries(PRESETS).map(([k, p]) => h('button', {
+    type: 'button', class: 'btn btn-quiet',
+    onclick: () => {
+      tNombre.value = p.nombre; tTipo.value = p.tipo;
+      tUnico.value = p.unico ?? ''; tPunta.value = p.punta ?? ''; tLlano.value = p.llano ?? ''; tValle.value = p.valle ?? '';
+      syncTipo();
+    },
+  }, k === 'pvpc' ? 'PVPC' : p.nombre.split(',')[0])));
+  const pf = (el) => parseFloat(String(el.value).replace(',', '.'));
+
   const aparatos = s.aparatos.map((a) => ({
     emoji: h('input', { type: 'text', value: a.emoji, maxlength: 4, 'aria-label': 'Icono' }),
     nombre: h('input', { type: 'text', value: a.nombre, 'aria-label': 'Nombre' }),
@@ -51,6 +80,11 @@ export function renderSettings(state, rerender, reload) {
     servidor: servidor.value.trim().replace(/\/+$/, ''),
     token: token.value.trim(),
     demo: demo.checked,
+    tarifa: tTipo.value === 'tramos'
+      ? { tipo: 'tramos', nombre: tNombre.value.trim() || 'Mi tarifa', punta: pf(tPunta), llano: pf(tLlano), valle: pf(tValle) }
+      : tTipo.value === 'unico'
+        ? { tipo: 'unico', nombre: tNombre.value.trim() || 'Mi tarifa', unico: pf(tUnico) }
+        : { tipo: 'pvpc', nombre: PRESETS.pvpc.nombre },
     nocheDesde: Math.min(23, Math.max(0, parseInt(desde.value, 10) || 0)),
     nocheHasta: Math.min(23, Math.max(0, parseInt(hasta.value, 10) || 0)),
     ciudad: place.ciudad, lat: place.lat, lon: place.lon,
@@ -70,11 +104,24 @@ export function renderSettings(state, rerender, reload) {
     try {
       const r = await server('estado');
       status.className = 'hint status-ok';
-      status.textContent = `Conectado. ${r.calendarios} calendarios${r.compra ? ', lista de la compra disponible' : ', sin lista de la compra todavía'}.`;
+      const donde = r.tipo === 'cloudflare' ? 'Cloudflare' : 'el servidor de casa';
+      const partes = [`${r.calendarios} ${r.calendarios === 1 ? 'calendario' : 'calendarios'}`];
+      if (r.menu) partes.push('menú compartido');
+      partes.push(r.compra ? 'lista de la compra' : 'sin lista de la compra todavía');
+      status.textContent = `Conectado con ${donde}: ${partes.join(', ')}.`;
     } catch (e) {
       status.className = 'hint status-bad';
       status.textContent = e.status === 403 ? 'El servidor responde, pero el token no es correcto.' : `No se pudo conectar: ${e.message}`;
     }
+  };
+
+  // Token aleatorio para configurar Cloudflare: se escribe en el campo y se copia
+  const genToken = async () => {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    token.type = 'text';
+    token.value = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+    token.select();
+    try { await navigator.clipboard.writeText(token.value); toast('Token copiado: pégalo como APP_TOKEN en Cloudflare'); } catch { toast('Copia el token y pégalo como APP_TOKEN en Cloudflare'); }
   };
 
   const save = (e) => {
@@ -87,16 +134,25 @@ export function renderSettings(state, rerender, reload) {
   return h('div', {},
     h('header', { class: 'page-head' }, h('h1', {}, 'Ajustes'), h('span', { class: 'sub' }, 'Se guardan solo en este dispositivo')),
     h('form', { class: 'form', onsubmit: save },
-      h('section', { class: 'panel' }, h('h2', {}, 'Servidor de casa'),
+      h('section', { class: 'panel' }, h('h2', {}, 'Conexión'),
         h('div', { class: 'form' },
-          field('Dirección', servidor, 'La que te da Tailscale para tu servidor (empieza por https://). Ver servidor/README.md.'),
-          field('Token', token, 'El contenido de secretos/app.token en el servidor.'),
-          h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn btn-quiet', onclick: test }, 'Probar conexión')),
+          field('Dirección', servidor, 'La de tu Worker de Cloudflare (https://casa.….workers.dev) o la de tu servidor de casa. Ver la guía en cloudflare/README.md.'),
+          field('Token', token, 'El mismo valor que pusiste como APP_TOKEN en Cloudflare (o el de secretos/app.token en el servidor).'),
+          h('div', { class: 'actions' },
+            h('button', { type: 'button', class: 'btn btn-quiet', onclick: test }, 'Probar conexión'),
+            h('button', { type: 'button', class: 'btn btn-quiet', onclick: genToken }, 'Generar un token nuevo')),
           status,
           h('label', { class: 'switch' }, demo, 'Usar datos de ejemplo aunque haya servidor'))),
       h('section', { class: 'panel' }, h('h2', {}, 'Tiempo'),
         h('div', { class: 'form' }, field('Municipio', placeInput), results, placeLabel, h('p', { class: 'hint' }, 'Datos del tiempo de Open-Meteo.com (CC BY 4.0).'),
           h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn btn-quiet', onclick: findPlace }, 'Buscar')))),
+      h('section', { class: 'panel' }, h('h2', {}, 'Tu tarifa de la luz'),
+        h('div', { class: 'form' },
+          h('p', { class: 'hint' }, 'Rellena con una de estas o con los precios de tu factura, sin impuestos (la app los añade).'),
+          presetButtons,
+          field('Nombre', tNombre),
+          field('Tipo', tTipo),
+          unicoBox, tramosBox)),
       h('section', { class: 'panel' }, h('h2', {}, 'Aparatos para las mejores horas'),
         h('p', { class: 'hint', style: { marginBottom: '12px' } }, 'Horas que tarda cada uno y lo que consume en total (kWh), para calcular el mejor tramo y el ahorro.'),
         h('div', { class: 'form' }, aparatos.map((a) => h('div', { class: 'aparato' },

@@ -199,7 +199,7 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
 .ev-title::before { content: ""; position: absolute; left: 0; top: 0.32em; width: 6px; height: 0.95em; border-radius: 3px; background: var(--c, var(--accent)); }
 .ev.past { opacity: 0.5; }
 .ev-menu { font-size: 0.92rem; color: var(--ink-muted); display: flex; gap: 8px; }
-.ev-menu::before { content: "🍽"; }
+.ev-menu::before { content: "🏫"; }
 
 /* ---------- Calendario de pared ---------- */
 .legend { display: flex; flex-wrap: wrap; gap: 14px; color: var(--ink-soft); }
@@ -334,3 +334,51 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
   .ev-title { white-space: normal; }
   .sky { padding: 20px 18px; border-radius: 22px; }
 }
+
+/* ---------- Tramos de la tarifa ---------- */
+.strips { display: grid; gap: 10px; }
+.strip-row { display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: center; }
+.strip-day { font-family: var(--display); font-weight: 700; }
+.strip { position: relative; display: flex; gap: 2px; height: 54px; }
+.strip-compact { height: 14px; margin-top: 14px; }
+.strip-seg { min-width: 0; border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; justify-content: center; overflow: hidden; white-space: nowrap; }
+.strip-compact .strip-seg { border-radius: 4px; padding: 0; }
+.strip-seg span { font-family: var(--display); font-weight: 700; font-size: 0.95rem; line-height: 1.1; }
+.strip-seg small { font-family: var(--display); font-size: 0.78rem; opacity: 0.85; }
+.strip-seg.barata { background: var(--cheap-bg); color: var(--cheap); }
+.strip-seg.media { background: color-mix(in srgb, var(--mid) 18%, transparent); color: var(--mid); }
+.strip-seg.cara { background: var(--dear-bg); color: var(--dear); }
+.strip-now { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--ink); }
+@media (max-width: 760px) {
+  .strip-row { grid-template-columns: 1fr; gap: 4px; }
+  .strip-seg small { display: none; }
+  .strip-seg { padding: 4px; }
+  .strip-seg span { font-size: 0.72rem; }
+}
+
+/* ---------- Menú ---------- */
+.menu-week { display: grid; gap: 0; padding-top: 8px; padding-bottom: 8px; }
+.menu-day {
+  display: grid; grid-template-columns: 110px 1fr 1fr; gap: 18px; align-items: baseline;
+  width: 100%; padding: 14px 0; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; cursor: pointer;
+}
+.menu-day:first-child { border-top: 0; }
+.menu-day.past { opacity: 0.55; }
+.menu-date { font-family: var(--display); font-weight: 700; font-size: 1.1rem; }
+.menu-date small { display: block; font-weight: 400; color: var(--ink-muted); font-size: 0.9rem; }
+.menu-day.is-today .menu-date { color: var(--accent); }
+.menu-dish { font-size: 1.12rem; min-width: 0; }
+.menu-dish small, .menu-today small { display: block; font-family: var(--display); font-size: 0.82rem; color: var(--ink-muted); }
+.menu-dish.empty-dish { color: var(--ink-muted); }
+.menu-today { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.menu-today p { font-family: var(--display); font-weight: 600; font-size: 1.3rem; line-height: 1.2; }
+.menu-today p.dim { opacity: 0.5; }
+@media (max-width: 760px) {
+  .menu-day { grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+  .menu-date { grid-column: 1 / -1; display: flex; gap: 8px; align-items: baseline; }
+  .menu-date small { display: inline; }
+}
+.strip-compact .strip-seg.barata { background: var(--cheap); }
+.strip-compact .strip-seg.media { background: var(--mid); }
+.strip-compact .strip-seg.cara { background: var(--dear); }
+.strip-compact .strip-now { background: var(--ink); outline: 2px solid var(--surface); }

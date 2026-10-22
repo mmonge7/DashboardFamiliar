@@ -21,7 +21,7 @@ function chip(ev) {
   return h('button', {
     type: 'button', class: 'chip' + (ev.allDay ? ' all-day' : ''), style: { '--c': ev.cal.color },
     onclick: () => showEvent(ev), title: ev.title,
-  }, !ev.allDay && h('b', {}, time(ev.start)), ev.title.replace(/^Menú:\s*/i, '🍽 '));
+  }, !ev.allDay && h('b', {}, time(ev.start)), ev.title.replace(/^(Menú|Comedor):\s*/i, '🏫 '));
 }
 
 function dayList(day, list, now) {

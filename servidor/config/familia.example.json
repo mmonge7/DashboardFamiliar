@@ -12,6 +12,7 @@
     "compra_json": "estado/compra.json",
     "compra_sync_estado": "estado/compra-sync.json",
     "compra_frecuentes": "estado/compra-frecuentes.json",
+    "menu_json": "estado/menu.json",
     "_nota_compra_ignorar": "Un producto por línea: nunca se ofrecen como «habituales» (bromas a Alexa, errores de reconocimiento).",
     "compra_ignorar": "config/compra-ignorar.txt"
   },

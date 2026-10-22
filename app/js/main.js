@@ -5,15 +5,18 @@ import { loadCalendar } from './data/calendar.js';
 import { loadPrices } from './data/energy.js';
 import { loadWeather } from './data/weather.js';
 import { loadShopping } from './data/shopping.js';
+import { loadMenu } from './data/menu.js';
 import { renderToday } from './views/today.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderEnergy } from './views/energy.js';
 import { renderShopping } from './views/shopping.js';
+import { renderMenu } from './views/menu.js';
 import { renderSettings } from './views/settings.js';
 
 const VIEWS = {
   hoy: renderToday,
   calendario: renderCalendar,
+  menu: renderMenu,
   luz: renderEnergy,
   compra: renderShopping,
   ajustes: renderSettings,
@@ -22,7 +25,7 @@ const VIEWS = {
 const LIVE = new Set(['hoy', 'calendario', 'luz']);
 const REFRESH_MS = 5 * 60000;
 
-const state = { now: new Date(), cal: null, prices: null, weather: null, shop: null };
+const state = { now: new Date(), cal: null, prices: null, weather: null, shop: null, menu: null };
 let wokenUntil = 0;
 
 function currentView() {
@@ -70,13 +73,15 @@ async function load(opts = {}) {
   const job = async (key, fn) => {
     try { state[key] = await fn(opts); } catch (e) { state[key] = { data: state[key]?.data || null, stale: true, error: e }; }
     const typing = document.activeElement?.tagName === 'INPUT';
-    if (!typing && (LIVE.has(currentView()) || (key === 'shop' && currentView() === 'compra'))) render();
+    const own = { shop: 'compra', menu: 'menu' }[key];
+    if (!typing && (LIVE.has(currentView()) || own === currentView())) render();
   };
   loading = Promise.all([
     job('weather', loadWeather),
     job('prices', loadPrices),
     job('cal', loadCalendar),
     job('shop', loadShopping),
+    job('menu', loadMenu),
   ]).finally(() => { loading = null; });
   return loading;
 }

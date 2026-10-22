@@ -12,10 +12,12 @@ export const DEFAULTS = {
   lon: -3.7038,
   // Electrodomésticos para «mejores horas» y el ahorro estimado
   aparatos: [
-    { emoji: '🚗', nombre: 'Cargar el coche', horas: 4, kwh: 9.0 },
+    { emoji: '🚗', nombre: 'Cargar el coche', horas: 3, kwh: 12.0 },
     { emoji: '🍽️', nombre: 'Lavavajillas', horas: 2, kwh: 1.2 },
     { emoji: '🧺', nombre: 'Lavadora', horas: 2, kwh: 1.0 },
   ],
+  // Tu tarifa (ver js/data/tariff.js): tipo 'pvpc', 'tramos' (punta, llano, valle) o 'unico', en €/kWh sin impuestos
+  tarifa: { tipo: 'unico', nombre: 'Repsol, precio único', unico: 0.111681 },
   nocheDesde: 23,          // a partir de esta hora la pantalla se oscurece
   nocheHasta: 7,
   demo: false,             // fuerza los datos de ejemplo aunque haya servidor

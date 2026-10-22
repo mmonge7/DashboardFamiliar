@@ -3,6 +3,9 @@ import { h, time, longDay, cap, dayLabel, shortDay, countdown, eurKwh, addDays, 
 import { describe } from '../data/weather.js';
 import { eventsOn, nowAndNext } from '../data/calendar.js';
 import { priceAt, level, cheapestWindow } from '../data/energy.js';
+import { currentTariff, periodAt, nextChange, bestWindow, TAX, PERIOD_LABEL, PERIOD_LEVEL } from '../data/tariff.js';
+import { periodStrip } from './energy.js';
+import { menuPeek } from './menu.js';
 import { shoppingList } from '../data/shopping.js';
 import { eventRow, eventWhen, showEvent, demoBanner } from './common.js';
 
@@ -87,9 +90,32 @@ function weekPanel(now, cal) {
 }
 
 function energyPeek(now, prices, settings) {
+  const t = currentTariff(settings);
   const list = prices?.data || [];
-  const p = priceAt(list, now);
   const box = h('a', { class: 'panel panel-link', href: '#/luz' }, h('h2', {}, 'Luz ahora'));
+  const first = settings.aparatos[0];
+
+  if (t.tipo === 'tramos') {
+    const p = periodAt(now);
+    const nc = nextChange(now);
+    box.append(
+      h('div', { class: 'big-figure' }, eurKwh(t[p] * TAX), h('small', {}, '€/kWh')),
+      h('span', { class: `price-tag ${PERIOD_LEVEL[p]}` }, PERIOD_LABEL[p]),
+      periodStrip(now, now, { compact: true }),
+      nc && h('p', { class: 'note' }, `${PERIOD_LABEL[nc.period]} ${countdown(nc.at, now)}`));
+    const best = first && bestWindow(t, now, first.horas, list);
+    if (best && best.start > now) box.append(h('p', { class: 'note' }, `${first.emoji} ${first.nombre}: mejor de ${time(best.start)} a ${time(best.end)}`));
+    return box;
+  }
+  if (t.tipo === 'unico') {
+    box.append(
+      h('div', { class: 'big-figure' }, eurKwh(t.unico * TAX), h('small', {}, '€/kWh')),
+      h('span', { class: 'price-tag media' }, 'Precio único'),
+      h('p', { class: 'note' }, 'Igual a cualquier hora, con impuestos.'));
+    return box;
+  }
+
+  const p = priceAt(list, now);
   if (!p) { box.append(h('p', { class: 'empty' }, prices ? 'Sin precio para esta hora.' : 'Cargando precios…'), statusNote(prices, 'Luz') || ''); return box; }
   const lv = level(p, list);
   box.append(
@@ -100,7 +126,6 @@ function energyPeek(now, prices, settings) {
   const max = Math.max(...next12.map((x) => x.eur));
   box.append(h('div', { class: 'minibars', 'aria-hidden': 'true' },
     next12.map((x, i) => h('i', { class: `${level(x, list)}${i === 0 ? ' now' : ''}`, style: { height: `${Math.max(10, (x.eur / max) * 100)}%` } }))));
-  const first = settings.aparatos[0];
   const best = first && cheapestWindow(list, now, first.horas, addDays(startOfDay(now), 2));
   if (best) box.append(h('p', { class: 'note' }, `${first.emoji} ${first.nombre}: mejor de ${time(best.start)} a ${time(best.end)}`));
   return box;
@@ -125,6 +150,7 @@ export function renderToday(state) {
     h('div', { class: 'today-grid' },
       h('div', { class: 'today-left' },
         nextPanel(now, cal),
+        menuPeek(now, state.menu),
         h('div', { class: 'summary-row' }, energyPeek(now, prices, settings), shopPeek(shop))),
       weekPanel(now, cal)));
 }

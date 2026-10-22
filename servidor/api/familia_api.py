@@ -12,6 +12,8 @@ Escucha SOLO en 127.0.0.1 («api.puerto», 8125 por defecto). Se publica dentro 
   GET  /api/compra                 → compra.json (lo escribe scripts/compra_export.py cada minuto)
   POST /api/compra/quitar  {"producto"} → lo marca comprado en Bring! (compra_sync.py lo quita de Alexa)
   POST /api/compra/anadir  {"producto"} → lo añade a Bring! (o lo vuelve a pedir si estaba comprado)
+  GET  /api/menu                   → {"dias": {"AAAA-MM-DD": {"comida", "cena"}}}  (estado/menu.json)
+  PUT  /api/menu/AAAA-MM-DD {"comida", "cena"} → guarda el menú de ese día (vacío = lo borra)
 
 Configuración: config/familia.json («calendarios», «home_assistant», «api»). Secretos (chmod 600, nunca en git):
 secretos/app.token, secretos/calendarios.properties y ha.token. Solo biblioteca estándar de Python 3.9+.
@@ -45,6 +47,7 @@ ORIGENES = [o.rstrip("/") for o in API.get("origenes", []) if not o.startswith("
 APP_TOKEN = familia.leer(familia.ruta("app_token", "secretos/app.token"))
 CAL_PROPS = familia.ruta("calendarios_secretos", "secretos/calendarios.properties")
 COMPRA_JSON = familia.ruta("compra_json", "publico/compra.json")
+MENU_JSON = familia.ruta("menu_json", "estado/menu.json")
 HA = familia.ha_url()
 BRING = familia.ha().get("compra_bring", "")
 MAX_BODY = 2048
@@ -108,6 +111,14 @@ def descargar(url: str, ttl: int, limite: int = MAX_ICS) -> bytes:
     return data
 
 
+def leer_menu() -> dict:
+    try:
+        with open(MENU_JSON, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
 def ha(path: str, body: dict | None = None):
     req = urllib.request.Request(HA + path, data=json.dumps(body).encode() if body is not None else None,
                                  method="POST" if body is not None else "GET",
@@ -151,7 +162,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
             self.send_header("Access-Control-Allow-Headers", "X-Familia, Content-Type")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
             self.send_header("Access-Control-Allow-Private-Network", "true")
             self.send_header("Access-Control-Max-Age", "600")
 
@@ -188,8 +199,8 @@ class Handler(BaseHTTPRequestHandler):
         path, q = url.path.rstrip("/"), urllib.parse.parse_qs(url.query)
         try:
             if path == "/api/estado":
-                return self.reply(200, {"ok": True, "version": VERSION, "calendarios": len(calendarios()),
-                                        "compra": os.path.exists(COMPRA_JSON)})
+                return self.reply(200, {"ok": True, "tipo": "servidor", "version": VERSION, "calendarios": len(calendarios()),
+                                        "compra": os.path.exists(COMPRA_JSON), "menu": True})
             if path == "/api/calendarios":
                 return self.reply(200, [{k: v for k, v in c.items() if not k.startswith("_")} for c in calendarios()])
             m = re.fullmatch(r"/api/ics/([A-Za-z0-9_-]{1,40})", path)
@@ -209,6 +220,8 @@ class Handler(BaseHTTPRequestHandler):
                 ree = ("https://apidatos.ree.es/es/datos/mercados/precios-mercados-tiempo-real"
                        f"?start_date={d0}T00:00&end_date={d1}T23:59&time_trunc=hour")
                 return self.send(200, descargar(ree, LUZ_TTL, 2 * 1024 * 1024), "application/json; charset=utf-8")
+            if path == "/api/menu":
+                return self.reply(200, {"dias": leer_menu()})
             if path == "/api/compra":
                 try:
                     with open(COMPRA_JSON, "rb") as f:
@@ -218,6 +231,37 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(404, {"error": "No existe"})
         except Exception as e:  # noqa: BLE001
             return self.reply(502, {"error": mensaje(e)})
+
+    # ---- PUT (menú) ----
+    def do_PUT(self):
+        if not self.authorized():
+            return
+        m = re.fullmatch(r"/api/menu/(\d{4}-\d{2}-\d{2})", self.path.rstrip("/"))
+        if not m:
+            return self.reply(404, {"error": "No existe"})
+        try:
+            datetime.date.fromisoformat(m.group(1))
+            n = int(self.headers.get("Content-Length", "0"))
+            if n > MAX_BODY:
+                return self.reply(413, {"error": "Petición demasiado grande"})
+            body = json.loads(self.rfile.read(n) or b"{}")
+            valor = {k: str(body.get(k, "")).strip()[:120] for k in ("comida", "cena")}
+        except (ValueError, AttributeError):
+            return self.reply(400, {"error": "Datos no válidos"})
+        with _lock:
+            dias = leer_menu()
+            if valor["comida"] or valor["cena"]:
+                dias[m.group(1)] = valor
+            else:
+                dias.pop(m.group(1), None)
+            limite = (datetime.date.today() - datetime.timedelta(days=180)).isoformat()
+            dias = {k: v for k, v in dias.items() if k >= limite}
+            os.makedirs(os.path.dirname(MENU_JSON), exist_ok=True)
+            tmp = MENU_JSON + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(dias, f, ensure_ascii=False)
+            os.replace(tmp, MENU_JSON)
+        return self.reply(200, {"ok": True})
 
     # ---- POST ----
     def do_POST(self):

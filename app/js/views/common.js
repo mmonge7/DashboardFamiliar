@@ -25,7 +25,7 @@ export function showEvent(ev) {
 export function eventRow(ev, now = new Date()) {
   if (ev.cal.papel === 'menu') {
     return h('button', { type: 'button', class: 'ev ev-menu-row', onclick: () => showEvent(ev), style: { gridTemplateColumns: '1fr' } },
-      h('span', { class: 'ev-menu' }, ev.title.replace(/^Menú:\s*/i, '')));
+      h('span', { class: 'ev-menu' }, ev.title.replace(/^(Menú|Comedor):\s*/i, '')));
   }
   return h('button', {
     type: 'button',
@@ -40,6 +40,6 @@ export function eventRow(ev, now = new Date()) {
 
 export function demoBanner() {
   return h('div', { class: 'banner' },
-    h('span', {}, 'Estás viendo datos de ejemplo. El tiempo y el precio de la luz son reales si hay conexión.'),
-    h('a', { href: '#/ajustes' }, 'Conectar mi servidor'));
+    h('span', {}, 'El calendario y la compra son de ejemplo hasta que conectes la app.'),
+    h('a', { href: '#/ajustes' }, 'Conectar'));
 }

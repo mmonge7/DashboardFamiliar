@@ -35,7 +35,7 @@ export function demoCalendar(now) {
     const mon = addDays(week0, w * 7);
     for (let d = 0; d < 5; d++) {
       const day = addDays(mon, d);
-      add('cole', `Menú: ${MENUS[(d + w) % MENUS.length]}`, day, addDays(day, 1), { allDay: true });
+      add('cole', `Comedor: ${MENUS[(d + w) % MENUS.length]}`, day, addDays(day, 1), { allDay: true });
     }
     for (const d of [0, 2]) add('deporte', 'Natación de Lucía', at(addDays(mon, d), 17, 30), at(addDays(mon, d), 18, 30), { location: 'Piscina municipal' });
     for (const d of [1, 3]) add('deporte', 'Entrenamiento de Pablo', at(addDays(mon, d), 18), at(addDays(mon, d), 19, 30), { location: 'Campo de fútbol' });
