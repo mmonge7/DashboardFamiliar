@@ -344,9 +344,9 @@ export function validateEvent(b) {
     if (fin <= inicio) throw httpError(400, 'El final tiene que ser posterior al inicio');
   } else {
     inicio = new Date(b.inicio); fin = new Date(b.fin);
-    if (isNaN(inicio) || isNaN(fin)) throw httpError(400, 'Fechas no válidas');
+    if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) throw httpError(400, 'Fechas no válidas');
     if (fin <= inicio) throw httpError(400, 'El final tiene que ser posterior al inicio');
-    if (fin - inicio > 31 * 86400000) throw httpError(400, 'Un evento puede durar como mucho 31 días');
+    if (fin.getTime() - inicio.getTime() > 31 * 86400000) throw httpError(400, 'Un evento puede durar como mucho 31 días');
   }
   return {
     titulo, todoElDia, inicio, fin,
