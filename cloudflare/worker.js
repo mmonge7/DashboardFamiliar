@@ -12,6 +12,9 @@
  *   POST /api/compra/anadir {producto}  /  POST /api/compra/quitar {producto}
  *   GET  /api/destinos[?refrescar=1]    → calendarios de iCloud donde se puede escribir [{id, cuenta, nombre, color}]
  *   POST /api/eventos {destino, titulo, inicio, fin, todoElDia, lugar, notas, tipo} → crea el evento en iCloud
+ *   GET  /api/eventos                   → {eventos: [{uid, ics, destino, tipo}], borrados: [uid]}: los creados desde la
+ *                                          app, leídos de iCloud en ese momento (si se borran en el iPhone, desaparecen)
+ *   PUT  /api/eventos/<uid> {…}  /  DELETE /api/eventos/<uid>   → editar o borrar uno creado desde la app
  *   GET  /api/tipos                     → {tipos, porCalendario, eventos}  (tipologías y la de cada evento)
  *   PUT  /api/tipos {tipos, porCalendario}  /  PUT /api/tipos/evento {uid, tipo}
  *
@@ -51,7 +54,7 @@ export default {
     const path = url.pathname.replace(/\/+$/, '');
     try {
       if (request.method === 'GET' && path === '/api/estado') {
-        return reply(200, { ok: true, tipo: 'cloudflare', version: '2.1', calendarios: calendars(env).length, compra: !!env.CASA, menu: !!env.CASA, escritura: accounts(env).length });
+        return reply(200, { ok: true, tipo: 'cloudflare', version: '2.2', calendarios: calendars(env).length, compra: !!env.CASA, menu: !!env.CASA, escritura: accounts(env).length });
       }
       if (request.method === 'GET' && path === '/api/calendarios') {
         return reply(200, calendars(env).map(({ url: _u, ...c }) => c));
@@ -157,7 +160,7 @@ export default {
         if (!dest) return reply(400, { error: 'Ese calendario ya no está disponible' });
         const acc = accounts(env).find((a) => a.clave === dest.cuentaClave);
         const uid = `${crypto.randomUUID()}@casa`;
-        const res = await fetch(dest.href.replace(/\/?$/, '/') + encodeURIComponent(uid) + '.ics', {
+        const res = await fetch(eventUrl(dest, uid), {
           method: 'PUT',
           headers: { Authorization: basic(acc), 'Content-Type': 'text/calendar; charset=utf-8', 'If-None-Match': '*', 'User-Agent': 'casa-familia/2.1' },
           body: buildIcs(uid, ev),
@@ -165,7 +168,55 @@ export default {
         if (res.status === 401 || res.status === 403) return reply(502, { error: `iCloud no deja escribir en «${dest.nombre}» (revisa la contraseña de aplicación)` });
         if (!res.ok) return reply(502, { error: `iCloud respondió ${res.status} al crear el evento` });
         if (ev.tipo) await setEventType(env, uid, ev.tipo);
+        const reg = await loadReg(env);
+        reg[uid] = regEntry(dest, eventUrl(dest, uid), ev);
+        await env.CASA.put('creados', JSON.stringify(reg));
         return reply(201, { ok: true, uid, destino: { id: dest.id, nombre: dest.nombre, color: dest.color, cuenta: dest.cuenta } });
+      }
+
+      // ---------- Eventos creados desde la app: leer, editar y borrar ----------
+      if (request.method === 'GET' && path === '/api/eventos') {
+        return reply(200, await appEvents(env));
+      }
+      m = path.match(/^\/api\/eventos\/([^/]{1,300})$/);
+      if (m && (request.method === 'PUT' || request.method === 'DELETE')) {
+        const uid = decodeURIComponent(m[1]);
+        const reg = await loadReg(env);
+        const entry = reg[uid];
+        if (!entry) return reply(404, { error: 'Ese evento no se creó desde la app (edítalo en el iPhone)' });
+        const acc = accounts(env).find((a) => a.clave === entry.cuenta);
+        if (!acc) return reply(400, { error: 'Falta la cuenta de iCloud de ese evento' });
+        if (request.method === 'DELETE') {
+          const res = await fetch(entry.href, { method: 'DELETE', headers: { Authorization: basic(acc), 'User-Agent': 'casa-familia/2.2' } });
+          if (!res.ok && res.status !== 404) return reply(502, { error: `iCloud respondió ${res.status} al borrar` });
+          delete reg[uid];
+          await env.CASA.put('creados', JSON.stringify(reg));
+          await markDeleted(env, [uid]);
+          await setEventType(env, uid, '');
+          return reply(200, { ok: true });
+        }
+        const body = await readJson(request, 8192);
+        const ev = validateEvent(body);
+        let list = await destinations(env, false);
+        let dest = list.find((d) => d.id === (body.destino || entry.destino));
+        if (!dest) { list = await destinations(env, true); dest = list.find((d) => d.id === (body.destino || entry.destino)); }
+        if (!dest) return reply(400, { error: 'Ese calendario ya no está disponible' });
+        const target = accounts(env).find((a) => a.clave === dest.cuentaClave);
+        const url = dest.id === entry.destino ? entry.href : eventUrl(dest, uid);
+        const res = await fetch(url, {
+          method: 'PUT',
+          headers: { Authorization: basic(target), 'Content-Type': 'text/calendar; charset=utf-8', 'User-Agent': 'casa-familia/2.2' },
+          body: buildIcs(uid, ev),
+        });
+        if (!res.ok) return reply(502, { error: `iCloud respondió ${res.status} al guardar` });
+        if (url !== entry.href) {
+          // Cambio de calendario: se borra el de antes
+          await fetch(entry.href, { method: 'DELETE', headers: { Authorization: basic(acc), 'User-Agent': 'casa-familia/2.2' } });
+        }
+        reg[uid] = regEntry(dest, url, ev);
+        await env.CASA.put('creados', JSON.stringify(reg));
+        await setEventType(env, uid, ev.tipo);
+        return reply(200, { ok: true });
       }
 
       return reply(404, { error: 'No existe' });
@@ -183,7 +234,7 @@ function corsHeaders(request, env) {
     'Access-Control-Allow-Origin': origin,
     'Vary': 'Origin',
     'Access-Control-Allow-Headers': 'X-Familia, Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Max-Age': '600',
   };
 }
@@ -261,9 +312,9 @@ function basic(acc) {
 
 function httpError(status, message) { return Object.assign(new Error(message), { status }); }
 
-async function dav(acc, url, body, depth) {
+async function dav(acc, url, body, depth, method = 'PROPFIND') {
   const res = await fetch(url, {
-    method: 'PROPFIND', body,
+    method, body,
     headers: { Authorization: basic(acc), 'Content-Type': 'application/xml; charset=utf-8', Depth: String(depth), 'User-Agent': 'casa-familia/2.1' },
   });
   if (res.status === 401) throw httpError(502, `iCloud no acepta la contraseña de aplicación de «${acc.nombre}»`);
@@ -388,4 +439,84 @@ export function buildIcs(uid, ev) {
   if (ev.tipo) lines.push(`X-CASA-TIPO:${ev.tipo}`);
   lines.push('END:VEVENT', 'END:VCALENDAR');
   return lines.map(fold).join('\r\n') + '\r\n';
+}
+
+// ---------- Registro de los eventos creados desde la app ----------
+
+const eventUrl = (dest, uid) => dest.href.replace(/\/?$/, '/') + encodeURIComponent(uid) + '.ics';
+
+function regEntry(dest, href, ev) {
+  const fin = ev.todoElDia ? new Date(`${ev.fin}T00:00:00Z`) : ev.fin;
+  return { destino: dest.id, cuenta: dest.cuentaClave, cuentaNombre: dest.cuenta, nombre: dest.nombre, color: dest.color, href, fin: fin.toISOString(), tipo: ev.tipo };
+}
+
+async function loadReg(env) {
+  return (await env.CASA.get('creados', 'json')) || {};
+}
+
+async function markDeleted(env, uids) {
+  const b = (await env.CASA.get('borrados', 'json')) || {};
+  const now = Date.now();
+  for (const u of uids) b[u] = now;
+  for (const [u, t] of Object.entries(b)) if (now - t > 2 * 86400000) delete b[u];
+  await env.CASA.put('borrados', JSON.stringify(b));
+}
+
+const xmlEscape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const pathOf = (href, base) => { try { return decodeURIComponent(new URL(href, base).pathname); } catch { return href; } };
+
+/**
+ * Los eventos creados desde la app, tal como están ahora en iCloud (una consulta «multiget» por calendario).
+ * Los que ya no existen (borrados en el iPhone) salen del registro y se devuelven en «borrados»,
+ * para que la app los oculte aunque el calendario público tarde unos minutos en enterarse.
+ */
+async function appEvents(env) {
+  const reg = await loadReg(env);
+  const now = Date.now();
+  let changed = false;
+  for (const [uid, e] of Object.entries(reg)) {
+    if (now - new Date(e.fin).getTime() > 45 * 86400000) { delete reg[uid]; changed = true; }
+  }
+  const groups = new Map();
+  for (const [uid, e] of Object.entries(reg)) {
+    const coll = e.href.slice(0, e.href.lastIndexOf('/') + 1);
+    const key = `${e.cuenta}|${coll}`;
+    if (!groups.has(key)) groups.set(key, { cuenta: e.cuenta, coll, items: [] });
+    groups.get(key).items.push([uid, e]);
+  }
+  const eventos = [];
+  const gone = [];
+  for (const g of groups.values()) {
+    const acc = accounts(env).find((a) => a.clave === g.cuenta);
+    if (!acc) continue;
+    let r;
+    try {
+      const hrefs = g.items.map(([, e]) => `<d:href>${xmlEscape(new URL(e.href).pathname)}</d:href>`).join('');
+      r = await dav(acc, g.coll,
+        `<?xml version="1.0" encoding="utf-8"?><c:calendar-multiget xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop>${hrefs}</c:calendar-multiget>`,
+        1, 'REPORT');
+    } catch {
+      continue; // iCloud no responde: se quedan como estaban y la app usa el calendario público
+    }
+    const found = new Map();
+    const missing = new Set();
+    for (const resp of xmlResponses(r.text)) {
+      const p = pathOf(xmlDecode(xmlFirst(resp, 'href')), r.url);
+      const data = xmlDecode(xmlFirst(resp, 'calendar-data'));
+      if (data && /BEGIN:VEVENT/.test(data)) found.set(p, data);
+      else if (/\b404\b/.test(resp)) missing.add(p);
+    }
+    for (const [uid, e] of g.items) {
+      const p = pathOf(e.href);
+      if (found.has(p)) {
+        eventos.push({ uid, ics: found.get(p), tipo: e.tipo || '', destino: { id: e.destino, nombre: e.nombre, color: e.color, cuenta: e.cuentaNombre } });
+      } else if (missing.has(p)) {
+        delete reg[uid]; gone.push(uid); changed = true;
+      }
+    }
+  }
+  if (changed) await env.CASA.put('creados', JSON.stringify(reg));
+  if (gone.length) await markDeleted(env, gone);
+  const borrados = Object.keys((await env.CASA.get('borrados', 'json')) || {});
+  return { eventos, borrados };
 }

@@ -97,6 +97,10 @@ En la app, **Calendario → + Nuevo evento** (o toca el hueco de un día) te dej
 se guarda y su **tipología**. El evento aparece al momento en la app y en unos segundos en todos los dispositivos
 Apple de esa cuenta.
 
+Los eventos **creados desde la app** se pueden **editar y borrar** desde la app (tócalos en el calendario), y la app
+los consulta directamente a iCloud: si los cambias o borras en el iPhone, la app lo ve al actualizar. Los que vienen
+del iPhone son de **solo lectura** en la app (salvo su tipología).
+
 > Con una contraseña de aplicación también se podría leer el correo y los contactos de esa cuenta de iCloud. El
 > Worker solo la usa para el calendario y la guarda cifrada como secreto. Si la revocas en account.apple.com, la app
 > deja de poder crear eventos, pero sigue enseñándolos.

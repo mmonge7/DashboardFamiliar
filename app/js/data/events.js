@@ -5,7 +5,6 @@ import { isDemo } from '../store.js';
 
 const KEY_LOCAL = 'casa.tipos.v1';
 const KEY_PENDING = 'casa.pendientes.v1';
-const PENDING_MAX_MS = 3 * 3600000;
 
 export const DEFAULT_TIPOS = [
   { id: 'comun', nombre: 'Común', color: '#2E8B6A' },
@@ -89,33 +88,32 @@ export async function loadDestinos({ refresh = false } = {}) {
   return server('destinos' + (refresh ? '?refrescar=1' : ''));
 }
 
-/** Crea el evento en iCloud y lo enseña ya en la app, hasta que llegue por el calendario público. */
-export async function createEvent(data, destino, tipo) {
-  const body = {
+function payload(data, destino, tipo) {
+  return {
     destino: destino.id, titulo: data.titulo, todoElDia: data.todoElDia,
     inicio: data.todoElDia ? data.dia : data.inicio.toISOString(),
     fin: data.todoElDia ? data.diaFin : data.fin.toISOString(),
     lugar: data.lugar, notas: data.notas, tipo: tipo?.id || '', tipoNombre: tipo?.nombre || '',
   };
-  const r = await server('eventos', { method: 'POST', body });
-  const start = data.todoElDia ? new Date(`${data.dia}T00:00`) : data.inicio;
-  const end = data.todoElDia ? new Date(`${data.diaFin}T00:00`) : data.fin;
-  const pending = readJson(KEY_PENDING, []).filter((p) => Date.now() - p.creado < PENDING_MAX_MS);
-  pending.push({
-    uid: r.uid, title: data.titulo, start: start.toISOString(), end: end.toISOString(), allDay: data.todoElDia,
-    location: data.lugar, description: data.notas, tipoId: tipo?.id || '', creado: Date.now(),
-    cal: { clave: `icloud-${destino.id}`, nombre: destino.nombre, color: destino.color, papel: 'events' },
-  });
-  writeJson(KEY_PENDING, pending);
-  return r;
 }
 
-/** Junta los eventos recién creados que aún no han llegado por el calendario público. */
-export function mergePending(events) {
-  const have = new Set(events.map((e) => e.uid).filter(Boolean));
-  const pending = readJson(KEY_PENDING, []).filter((p) => Date.now() - p.creado < PENDING_MAX_MS && !have.has(p.uid));
-  writeJson(KEY_PENDING, pending);
-  if (!pending.length) return events;
-  const extra = pending.map((p) => ({ ...p, id: `pendiente:${p.uid}`, start: new Date(p.start), end: new Date(p.end), pending: true }));
-  return [...events, ...extra].sort((a, b) => a.start - b.start || b.allDay - a.allDay);
+/** Crea el evento en iCloud (el Worker lo apunta como «creado desde la app»: se podrá editar y borrar). */
+export function createEvent(data, destino, tipo) {
+  return server('eventos', { method: 'POST', body: payload(data, destino, tipo) });
 }
+
+export function updateEvent(uid, data, destino, tipo) {
+  return server(`eventos/${encodeURIComponent(uid)}`, { method: 'PUT', body: payload(data, destino, tipo) });
+}
+
+export function deleteEvent(uid) {
+  return server(`eventos/${encodeURIComponent(uid)}`, { method: 'DELETE' });
+}
+
+/** Los eventos creados desde la app, leídos de iCloud en este momento. Con el servidor de casa no existen: lista vacía. */
+export async function loadAppEvents() {
+  try { return await server('eventos'); } catch { return { eventos: [], borrados: [] }; }
+}
+
+// Versión anterior: eventos «pendientes» guardados en el dispositivo. Ya no hacen falta.
+try { localStorage.removeItem(KEY_PENDING); } catch { /* sin almacenamiento */ }

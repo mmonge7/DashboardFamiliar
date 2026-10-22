@@ -1,7 +1,7 @@
 // Formulario «Nuevo evento»: título, día y hora, calendario de iCloud donde guardarlo y tipología.
 import { h, openSheet, toast, addDays } from '../ui.js';
 import { getSettings, isDemo } from '../store.js';
-import { loadDestinos, createEvent } from '../data/events.js';
+import { loadDestinos, createEvent, updateEvent } from '../data/events.js';
 
 let destinosCache = null;
 const pad = (n) => String(n).padStart(2, '0');
@@ -14,30 +14,36 @@ function field(label, input, hint) {
   return h('div', { class: 'field' }, h('label', { for: id }, label), input, hint && h('p', { class: 'hint' }, hint));
 }
 
-/** Abre el formulario. [day]: el día tocado en el calendario (o hoy). [cfg]: tipologías. */
-export function openNewEvent(day, cfg) {
+/**
+ * Abre el formulario. [day]: el día tocado en el calendario (o hoy). [cfg]: tipologías.
+ * [editing]: un evento creado desde la app, para editarlo.
+ */
+export function openNewEvent(day, cfg, editing = null) {
   const settings = getSettings();
   const now = new Date();
   const base = day ? new Date(day) : new Date(now);
   let start;
-  if (!day || ymd(base) === ymd(now)) { start = new Date(now); start.setMinutes(0, 0, 0); start.setHours(start.getHours() + 1); }
+  if (editing) start = new Date(editing.start);
+  else if (!day || ymd(base) === ymd(now)) { start = new Date(now); start.setMinutes(0, 0, 0); start.setHours(start.getHours() + 1); }
   else { start = new Date(base); start.setHours(10, 0, 0, 0); }
-  const end = new Date(+start + 3600000);
+  const end = editing ? new Date(editing.end) : new Date(+start + 3600000);
 
-  const titulo = h('input', { type: 'text', maxlength: 200, placeholder: 'Ej.: Pediatra de la peque', required: true, enterkeyhint: 'next' });
+  const titulo = h('input', { type: 'text', maxlength: 200, placeholder: 'Ej.: Pediatra de la peque', required: true, enterkeyhint: 'next', value: editing?.title || '' });
   const dia = h('input', { type: 'date', value: ymd(start), required: true });
-  const todoElDia = h('input', { type: 'checkbox' });
-  const horaIni = h('input', { type: 'time', value: hm(start), step: 300 });
-  const horaFin = h('input', { type: 'time', value: hm(end), step: 300 });
-  const diaFin = h('input', { type: 'date', value: ymd(start) });
-  const lugar = h('input', { type: 'text', maxlength: 200, placeholder: 'Opcional' });
-  const notas = h('textarea', { rows: 3, maxlength: 2000, placeholder: 'Opcional' });
+  const todoElDia = h('input', { type: 'checkbox', checked: !!editing?.allDay });
+  const horaIni = h('input', { type: 'time', value: editing?.allDay ? '10:00' : hm(start), step: 300 });
+  const horaFin = h('input', { type: 'time', value: editing?.allDay ? '11:00' : hm(end), step: 300 });
+  const diaFin = h('input', { type: 'date', value: editing?.allDay ? ymd(addDays(end, -1)) : ymd(start) });
+  const lugar = h('input', { type: 'text', maxlength: 200, placeholder: 'Opcional', value: editing?.location || '' });
+  const notas = h('textarea', { rows: 3, maxlength: 2000, placeholder: 'Opcional' }, editing?.description || '');
   const destino = h('select', { disabled: true }, h('option', {}, 'Cargando tus calendarios…'));
   const tipo = h('select', {},
     h('option', { value: '' }, 'Sin tipología'),
-    (cfg?.tipos || []).map((t) => h('option', { value: t.id }, t.nombre)));
+    (cfg?.tipos || []).map((t) => h('option', { value: t.id, selected: editing?.tipo?.id === t.id }, t.nombre)));
+  if (editing) tipo.dataset.touched = '1'; // al editar se respeta la que tiene
   const status = h('p', { class: 'hint', 'aria-live': 'polite' });
-  const submit = h('button', { type: 'submit', class: 'btn', disabled: true }, 'Crear evento');
+  const label = editing ? 'Guardar cambios' : 'Crear evento';
+  const submit = h('button', { type: 'submit', class: 'btn', disabled: true }, label);
 
   const horas = h('div', { class: 'field-row' }, field('Empieza', horaIni), field('Termina', horaFin));
   const finDia = field('Último día', diaFin);
@@ -74,7 +80,7 @@ export function openNewEvent(day, cfg) {
     const last = (() => { try { return localStorage.getItem('casa.ultimoDestino'); } catch { return null; } })();
     const cuentas = [...new Set(list.map((d) => d.cuenta))];
     destino.replaceChildren(...cuentas.map((c) => h('optgroup', { label: `Cuenta de ${c}` },
-      list.filter((d) => d.cuenta === c).map((d) => h('option', { value: d.id, selected: d.id === last }, d.nombre)))));
+      list.filter((d) => d.cuenta === c).map((d) => h('option', { value: d.id, selected: d.id === (editing?.destinoId || last) }, d.nombre)))));
     destino.disabled = false;
     submit.disabled = false;
     syncTipo();
@@ -96,21 +102,22 @@ export function openNewEvent(day, cfg) {
       if (data.fin <= data.inicio) data.fin = addDays(data.fin, 1); // termina pasada la medianoche
     }
     const t = cfg?.tipos?.find((x) => x.id === tipo.value) || null;
-    submit.disabled = true; submit.textContent = 'Creando…';
+    submit.disabled = true; submit.textContent = editing ? 'Guardando…' : 'Creando…';
     try {
-      await createEvent(data, d, t);
+      if (editing) await updateEvent(editing.uid, data, d, t);
+      else await createEvent(data, d, t);
       close();
-      toast(`Creado en «${d.nombre}». Lo verás en el iPhone en unos segundos.`);
-      window.dispatchEvent(new Event('casa:recargar'));
+      toast(editing ? 'Cambios guardados, también en el iPhone' : `Creado en «${d.nombre}». Lo verás en el iPhone en unos segundos.`);
+      window.dispatchEvent(new CustomEvent('casa:recargar', { detail: { force: true } }));
     } catch (err) {
       status.className = 'hint status-bad';
-      status.textContent = `No se pudo crear: ${err.message}`;
-      submit.disabled = false; submit.textContent = 'Crear evento';
+      status.textContent = `No se pudo guardar: ${err.message}`;
+      submit.disabled = false; submit.textContent = label;
     }
   };
 
   const close = openSheet(h('form', { class: 'form', onsubmit: onSubmit },
-    h('h2', {}, 'Nuevo evento'),
+    h('h2', {}, editing ? 'Editar evento' : 'Nuevo evento'),
     field('Título', titulo),
     field('Día', dia),
     h('label', { class: 'switch' }, todoElDia, 'Todo el día'),

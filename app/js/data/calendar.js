@@ -5,7 +5,7 @@ import ICAL from '../../vendor/ical.min.js';
 import { server, cached } from '../api.js';
 import { isDemo, cacheGet } from '../store.js';
 import { demoCalendar } from '../demo.js';
-import { mergePending } from './events.js';
+import { loadAppEvents } from './events.js';
 import { addDays, startOfWeek } from '../ui.js';
 
 const MAX_AGE = 5 * 60000;
@@ -84,7 +84,7 @@ export async function loadCalendar({ force = false } = {}) {
   const now = new Date();
   if (isDemo()) {
     const demo = demoCalendar(now);
-    return { data: { ...demo, events: mergePending(demo.events) }, demo: true, at: Date.now() };
+    return { data: demo, demo: true, at: Date.now() };
   }
   const { from, to } = calWindow(now);
   // Si la última copia no tenía calendarios (p. ej. antes de configurarlos), no se reutiliza
@@ -103,10 +103,22 @@ export async function loadCalendar({ force = false } = {}) {
       }
     }));
     if (calendars.length && errors.length === calendars.length) throw new Error(errors.join('; '));
-    events.sort((a, b) => a.start - b.start || b.allDay - a.allDay);
-    return { calendars, events, errors };
+    // Los creados desde la app se leen de iCloud directamente (al día y editables); sustituyen a su copia del
+    // calendario público, y los borrados en el iPhone se ocultan aunque el calendario público aún no lo sepa.
+    const app = await loadAppEvents();
+    const hide = new Set([...(app.borrados || []), ...(app.eventos || []).map((e) => e.uid)]);
+    const own = [];
+    for (const e of app.eventos || []) {
+      try {
+        const cal = { clave: `app-${e.destino.id}`, nombre: e.destino.nombre, color: e.destino.color, papel: 'events' };
+        for (const ev of parseIcs(e.ics, cal, from, to)) own.push({ ...ev, editable: true, destinoId: e.destino.id, tipoId: e.tipo || ev.tipoId });
+      } catch { /* evento ilegible: se ignora */ }
+    }
+    const all = [...events.filter((ev) => !hide.has(ev.uid)), ...own];
+    all.sort((a, b) => a.start - b.start || b.allDay - a.allDay);
+    return { calendars, events: all, errors };
   }, { force });
-  if (res.data) res.data = { ...res.data, events: mergePending(revive(res.data.events)) };
+  if (res.data) res.data = { ...res.data, events: revive(res.data.events) };
   return res;
 }
 

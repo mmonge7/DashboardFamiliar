@@ -103,7 +103,7 @@ async function keepAwake() {
 
 window.addEventListener('hashchange', () => render({ focus: true }));
 // Otras pantallas piden recargar tras crear un evento o cambiar una tipología
-window.addEventListener('casa:recargar', () => { render(); load(); });
+window.addEventListener('casa:recargar', (e) => { render(); load({ force: !!e.detail?.force }); });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { load(); keepAwake(); render(); }
 });
