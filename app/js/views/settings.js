@@ -14,7 +14,27 @@ function field(label, input, hint) {
 export function renderSettings(state, rerender, reload) {
   const s = getSettings();
   const servidor = h('input', { type: 'url', value: s.servidor, placeholder: 'https://mi-servidor.tu-red.ts.net', inputmode: 'url', autocapitalize: 'off', spellcheck: 'false' });
-  const token = h('input', { type: 'password', value: s.token, placeholder: 'Token de la app', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
+  const token = h('input', { type: 'password', value: s.token, placeholder: 'Token de la app', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
+  // Huella del token para comparar a simple vista entre dispositivos (sin enseñarlo entero)
+  const tokenInfo = h('p', { class: 'hint' });
+  const cleanToken = (v) => String(v).replace(/[^0-9a-zA-Z_-]/g, '');
+  const showInfo = () => {
+    const t = cleanToken(token.value);
+    tokenInfo.textContent = t ? `${t.length} caracteres: empieza por «${t.slice(0, 4)}» y acaba en «${t.slice(-4)}». Debe ser igual en todos los dispositivos.` : '';
+  };
+  token.addEventListener('input', showInfo);
+  showInfo();
+  const toggleShow = (e) => {
+    token.type = token.type === 'password' ? 'text' : 'password';
+    e.currentTarget.textContent = token.type === 'password' ? 'Mostrar token' : 'Ocultar token';
+  };
+  const copyToken = async () => {
+    const t = cleanToken(token.value);
+    if (!t) { toast('No hay token que copiar'); return; }
+    try { await navigator.clipboard.writeText(t); toast('Token copiado'); } catch {
+      token.type = 'text'; token.select(); toast('Selecciónalo y cópialo a mano');
+    }
+  };
   const status = h('p', { class: 'hint', 'aria-live': 'polite' });
   const demo = h('input', { type: 'checkbox', checked: s.demo });
   const desde = h('input', { type: 'number', min: 0, max: 23, value: s.nocheDesde });
@@ -78,7 +98,7 @@ export function renderSettings(state, rerender, reload) {
   const collect = () => ({
     ...s,
     servidor: servidor.value.trim().replace(/\/+$/, ''),
-    token: token.value.trim(),
+    token: cleanToken(token.value),
     demo: demo.checked,
     tarifa: tTipo.value === 'tramos'
       ? { tipo: 'tramos', nombre: tNombre.value.trim() || 'Mi tarifa', punta: pf(tPunta), llano: pf(tLlano), valle: pf(tValle) }
@@ -111,16 +131,26 @@ export function renderSettings(state, rerender, reload) {
       status.textContent = `Conectado con ${donde}: ${partes.join(', ')}.`;
     } catch (e) {
       status.className = 'hint status-bad';
-      status.textContent = e.status === 403 ? 'El servidor responde, pero el token no es correcto.' : `No se pudo conectar: ${e.message}`;
+      status.textContent = e.status === 403
+        ? 'El servidor responde, pero el token no coincide con el de Cloudflare. Compara la huella de abajo con la de otro dispositivo que funcione.'
+        : `No se pudo conectar: ${e.message}`;
     }
   };
 
   // Token aleatorio para configurar Cloudflare: se escribe en el campo y se copia
-  const genToken = async () => {
+  let genArmed = false;
+  const genToken = async (e) => {
+    // Si ya hay un token, pide una segunda pulsación: uno nuevo obliga a cambiarlo en Cloudflare y en todos los dispositivos
+    if (cleanToken(token.value) && !genArmed) {
+      genArmed = true;
+      e.currentTarget.textContent = 'Pulsa otra vez: tendrás que cambiarlo en Cloudflare';
+      return;
+    }
     const bytes = crypto.getRandomValues(new Uint8Array(32));
     token.type = 'text';
     token.value = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
     token.select();
+    showInfo();
     try { await navigator.clipboard.writeText(token.value); toast('Token copiado: pégalo como APP_TOKEN en Cloudflare'); } catch { toast('Copia el token y pégalo como APP_TOKEN en Cloudflare'); }
   };
 
@@ -138,6 +168,10 @@ export function renderSettings(state, rerender, reload) {
         h('div', { class: 'form' },
           field('Dirección', servidor, 'La de tu Worker de Cloudflare (https://casa.….workers.dev) o la de tu servidor de casa. Ver la guía en cloudflare/README.md.'),
           field('Token', token, 'El mismo valor que pusiste como APP_TOKEN en Cloudflare (o el de secretos/app.token en el servidor).'),
+          tokenInfo,
+          h('div', { class: 'actions' },
+            h('button', { type: 'button', class: 'btn btn-quiet', onclick: toggleShow }, 'Mostrar token'),
+            h('button', { type: 'button', class: 'btn btn-quiet', onclick: copyToken }, 'Copiar token')),
           h('div', { class: 'actions' },
             h('button', { type: 'button', class: 'btn btn-quiet', onclick: test }, 'Probar conexión'),
             h('button', { type: 'button', class: 'btn btn-quiet', onclick: genToken }, 'Generar un token nuevo')),
