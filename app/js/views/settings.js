@@ -206,7 +206,7 @@ export function renderSettings(state, rerender, reload) {
 
 /** Tipologías de los eventos y la que lleva por defecto cada calendario. Se comparten con toda la familia. */
 function tiposPanel(state) {
-  const cfg = state.tipos || { tipos: DEFAULT_TIPOS, porCalendario: {}, eventos: {} };
+  const cfg = state.tipos || { tipos: DEFAULT_TIPOS, porCalendario: {}, colores: {}, eventos: {} };
   let rows = cfg.tipos.map((t) => ({ ...t }));
   let calendars = (state.cal?.data?.calendars || []).filter((c) => c.papel !== 'menu');
   const list = h('div', { class: 'form', style: { gap: '10px' } });
@@ -214,16 +214,25 @@ function tiposPanel(state) {
   const status = h('p', { class: 'hint', 'aria-live': 'polite' });
   const slug = (s) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
   const selects = new Map();
+  const colors = new Map(); // clave → color elegido para el calendario
+  const origin = (c) => c.colorOrigen || c.color;
 
   const drawDefaults = () => {
     defaults.replaceChildren(...(calendars.length ? calendars.map((c) => {
       const current = selects.get(c.clave)?.value ?? cfg.porCalendario?.[c.clave] ?? '';
       const sel = h('select', { 'aria-label': `Tipología de ${c.nombre}` },
-        h('option', { value: '' }, 'Ninguna'),
+        h('option', { value: '' }, 'Sin tipología'),
         rows.filter((t) => t.nombre.trim()).map((t) => h('option', { value: t.id, selected: t.id === current }, t.nombre)));
       selects.set(c.clave, sel);
-      return h('div', { class: 'tipo-row', style: { gridTemplateColumns: '1fr 1fr' } },
-        h('span', {}, h('i', { class: 'dot', style: { background: c.color, marginRight: '8px' } }), c.nombre), sel);
+      if (!colors.has(c.clave)) colors.set(c.clave, cfg.colores?.[c.clave] || origin(c));
+      const color = h('input', { type: 'color', value: colors.get(c.clave), 'aria-label': `Color de ${c.nombre}` });
+      color.addEventListener('input', () => { colors.set(c.clave, color.value); reset.hidden = color.value.toLowerCase() === origin(c).toLowerCase(); });
+      const reset = h('button', {
+        type: 'button', class: 'btn btn-quiet btn-small', title: 'Volver al color del calendario de Apple',
+        hidden: colors.get(c.clave).toLowerCase() === origin(c).toLowerCase(),
+        onclick: () => { colors.set(c.clave, origin(c)); color.value = origin(c); reset.hidden = true; },
+      }, 'Original');
+      return h('div', { class: 'cal-row' }, color, h('span', { class: 'cal-name' }, c.nombre, reset), sel);
     }) : [h('p', { class: 'hint' }, 'Cuando conectes tus calendarios aparecerán aquí.')]));
   };
   const draw = () => {
@@ -264,11 +273,17 @@ function tiposPanel(state) {
     if (!tipos.length || ids.size !== tipos.length) { status.className = 'hint status-bad'; status.textContent = 'Revisa los nombres: no pueden quedar vacíos ni repetirse.'; return; }
     const porCalendario = {};
     for (const [clave, sel] of selects) if (sel.value && ids.has(sel.value)) porCalendario[clave] = sel.value;
+    // Solo se guardan los colores cambiados; el resto sigue el del calendario de Apple
+    const colores = {};
+    for (const c of calendars) {
+      const v = colors.get(c.clave);
+      if (v && v.toLowerCase() !== origin(c).toLowerCase()) colores[c.clave] = v;
+    }
     try {
-      await saveTipos({ tipos, porCalendario, eventos: cfg.eventos });
-      Object.assign(cfg, { tipos, porCalendario });
+      await saveTipos({ tipos, porCalendario, colores, eventos: cfg.eventos });
+      Object.assign(cfg, { tipos, porCalendario, colores });
       if (state.tipos !== cfg) state.tipos = { ...cfg, eventos: cfg.eventos || {} };
-      toast('Tipologías guardadas');
+      toast('Tipologías y colores guardados');
       forgetDestinos();
       window.dispatchEvent(new Event('casa:recargar'));
     } catch (e) { status.className = 'hint status-bad'; status.textContent = `No se pudieron guardar: ${e.message}`; }
@@ -281,8 +296,9 @@ function tiposPanel(state) {
         : 'Se guardan en este dispositivo hasta que conectes la app.'),
     list,
     h('div', { class: 'actions', style: { marginTop: '10px' } }, h('button', { type: 'button', class: 'btn btn-quiet', onclick: add }, 'Añadir tipología')),
-    h('h3', { style: { margin: '20px 0 10px', fontFamily: 'var(--display)' } }, 'Tipología por defecto de cada calendario'),
+    h('h3', { style: { margin: '22px 0 4px', fontFamily: 'var(--display)' } }, 'Calendarios'),
+    h('p', { class: 'hint', style: { marginBottom: '10px' } }, 'El color con el que se ve cada calendario en la app (solo en la app: en el iPhone no cambia) y la tipología que llevan sus eventos por defecto.'),
     defaults,
     status,
-    h('div', { class: 'actions', style: { marginTop: '14px' } }, h('button', { type: 'button', class: 'btn', onclick: save }, 'Guardar tipologías')));
+    h('div', { class: 'actions', style: { marginTop: '14px' } }, h('button', { type: 'button', class: 'btn', onclick: save }, 'Guardar tipologías y colores')));
 }

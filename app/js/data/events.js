@@ -21,37 +21,37 @@ function writeJson(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
 }
 
-/** { tipos, porCalendario, eventos: {uid: tipoId}, shared } */
+/** { tipos, porCalendario, colores: {clave: '#color'}, eventos: {uid: tipoId}, shared } */
 export async function loadTipos() {
   if (isDemo()) {
     const local = readJson(KEY_LOCAL, {});
-    return { tipos: local.tipos || DEFAULT_TIPOS, porCalendario: local.porCalendario || DEMO_POR_CALENDARIO, eventos: local.eventos || {}, shared: false };
+    return { tipos: local.tipos || DEFAULT_TIPOS, porCalendario: local.porCalendario || DEMO_POR_CALENDARIO, colores: local.colores || {}, eventos: local.eventos || {}, shared: false };
   }
   try {
     const r = await server('tipos');
-    const cfg = { tipos: r.tipos?.length ? r.tipos : DEFAULT_TIPOS, porCalendario: r.porCalendario || {}, eventos: r.eventos || {}, shared: true };
+    const cfg = { tipos: r.tipos?.length ? r.tipos : DEFAULT_TIPOS, porCalendario: r.porCalendario || {}, colores: r.colores || {}, eventos: r.eventos || {}, shared: true };
     writeJson(KEY_LOCAL + ':copia', cfg);
     return cfg;
   } catch {
     // Sin conexión o con el servidor de casa (que no guarda tipologías): última copia o valores por defecto
     const copy = readJson(KEY_LOCAL + ':copia', null);
-    return copy ? { ...copy, shared: true } : { tipos: DEFAULT_TIPOS, porCalendario: {}, eventos: {}, shared: false };
+    return copy ? { colores: {}, ...copy, shared: true } : { tipos: DEFAULT_TIPOS, porCalendario: {}, colores: {}, eventos: {}, shared: false };
   }
 }
 
 export async function saveTipos(cfg) {
   if (isDemo()) {
-    writeJson(KEY_LOCAL, { tipos: cfg.tipos, porCalendario: cfg.porCalendario, eventos: cfg.eventos || {} });
+    writeJson(KEY_LOCAL, { tipos: cfg.tipos, porCalendario: cfg.porCalendario, colores: cfg.colores || {}, eventos: cfg.eventos || {} });
     return;
   }
-  await server('tipos', { method: 'PUT', body: { tipos: cfg.tipos, porCalendario: cfg.porCalendario } });
+  await server('tipos', { method: 'PUT', body: { tipos: cfg.tipos, porCalendario: cfg.porCalendario, colores: cfg.colores || {} } });
 }
 
 export async function setEventTipo(cfg, uid, tipo) {
   if (isDemo()) {
     const local = readJson(KEY_LOCAL, {});
     local.eventos = { ...(local.eventos || {}), [uid]: tipo };
-    writeJson(KEY_LOCAL, { tipos: cfg.tipos, porCalendario: cfg.porCalendario, ...local });
+    writeJson(KEY_LOCAL, { tipos: cfg.tipos, porCalendario: cfg.porCalendario, colores: cfg.colores || {}, ...local });
   } else {
     await server('tipos/evento', { method: 'PUT', body: { uid, tipo } });
   }
@@ -70,14 +70,31 @@ export function tipoOf(ev, cfg) {
     const t = cfg.tipos.find((x) => norm(x.nombre) === norm(c) || x.id === norm(c));
     if (t) return t;
   }
-  return byId(cfg.porCalendario?.[ev.cal?.clave]) || null;
+  return byId(cfg.porCalendario?.[ev.calKey || ev.cal?.clave]) || null;
 }
 
-/** Añade a cada evento su tipología y el color con el que se pinta. */
-export function decorate(events, cfg, colorPor = 'tipo') {
+const slugName = (s) => norm(s).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+/**
+ * Añade a cada evento su tipología y el color con el que se pinta, y aplica a calendarios y eventos los colores
+ * elegidos en Ajustes. Los eventos creados desde la app se asocian al calendario sincronizado del mismo nombre.
+ */
+export function decorate(events, cfg, colorPor = 'tipo', calendars = []) {
+  const colores = cfg?.colores || {};
+  for (const c of calendars) {
+    c.colorOrigen ??= c.color;
+    c.color = colores[c.clave] || c.colorOrigen;
+  }
+  const byName = new Map(calendars.map((c) => [slugName(c.nombre), c]));
   for (const ev of events) {
+    if (!ev.calKey) {
+      ev.calKey = ev.cal.clave.startsWith('app-') ? (byName.get(slugName(ev.cal.nombre))?.clave || ev.cal.clave) : ev.cal.clave;
+      ev.calOrigen = ev.cal.color;
+    }
+    const color = colores[ev.calKey] || calendars.find((c) => c.clave === ev.calKey)?.color || ev.calOrigen;
+    ev.cal = { ...ev.cal, color };
     ev.tipo = tipoOf(ev, cfg);
-    ev.color = colorPor === 'tipo' && ev.tipo ? ev.tipo.color : ev.cal.color;
+    ev.color = colorPor === 'tipo' && ev.tipo ? ev.tipo.color : color;
   }
   return events;
 }

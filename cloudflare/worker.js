@@ -15,8 +15,8 @@
  *   GET  /api/eventos                   → {eventos: [{uid, ics, destino, tipo}], borrados: [uid]}: los creados desde la
  *                                          app, leídos de iCloud en ese momento (si se borran en el iPhone, desaparecen)
  *   PUT  /api/eventos/<uid> {…}  /  DELETE /api/eventos/<uid>   → editar o borrar uno creado desde la app
- *   GET  /api/tipos                     → {tipos, porCalendario, eventos}  (tipologías y la de cada evento)
- *   PUT  /api/tipos {tipos, porCalendario}  /  PUT /api/tipos/evento {uid, tipo}
+ *   GET  /api/tipos                     → {tipos, porCalendario, colores, eventos}  (tipologías, colores de calendario…)
+ *   PUT  /api/tipos {tipos, porCalendario, colores}  /  PUT /api/tipos/evento {uid, tipo}
  *
  * Configuración (en Cloudflare → tu Worker → Settings → Variables and Secrets):
  *   APP_TOKEN  (secreto)  el token de la app: cada petición lo trae en la cabecera X-Familia
@@ -54,7 +54,7 @@ export default {
     const path = url.pathname.replace(/\/+$/, '');
     try {
       if (request.method === 'GET' && path === '/api/estado') {
-        return reply(200, { ok: true, tipo: 'cloudflare', version: '2.2', calendarios: calendars(env).length, compra: !!env.CASA, menu: !!env.CASA, escritura: accounts(env).length });
+        return reply(200, { ok: true, tipo: 'cloudflare', version: '2.3', calendarios: calendars(env).length, compra: !!env.CASA, menu: !!env.CASA, escritura: accounts(env).length });
       }
       if (request.method === 'GET' && path === '/api/calendarios') {
         return reply(200, calendars(env).map(({ url: _u, ...c }) => c));
@@ -122,7 +122,7 @@ export default {
       // ---------- Tipologías ----------
       if (request.method === 'GET' && path === '/api/tipos') {
         const cfg = (await env.CASA.get('tipos', 'json')) || {};
-        return reply(200, { tipos: cfg.tipos || null, porCalendario: cfg.porCalendario || {}, eventos: (await env.CASA.get('evtipo', 'json')) || {} });
+        return reply(200, { tipos: cfg.tipos || null, porCalendario: cfg.porCalendario || {}, colores: cfg.colores || {}, eventos: (await env.CASA.get('evtipo', 'json')) || {} });
       }
       if (request.method === 'PUT' && path === '/api/tipos') {
         const body = await readJson(request, 8192);
@@ -134,7 +134,9 @@ export default {
         const ids = new Set(tipos.map((t) => t.id));
         const porCalendario = {};
         for (const [k, v] of Object.entries(body.porCalendario || {})) if (/^[a-z0-9_-]{1,40}$/.test(k) && ids.has(v)) porCalendario[k] = v;
-        await env.CASA.put('tipos', JSON.stringify({ tipos, porCalendario }));
+        const colores = {};
+        for (const [k, v] of Object.entries(body.colores || {})) if (/^[a-z0-9_-]{1,40}$/.test(k) && /^#[0-9a-f]{6}$/i.test(v)) colores[k] = v;
+        await env.CASA.put('tipos', JSON.stringify({ tipos, porCalendario, colores }));
         return reply(200, { ok: true });
       }
       if (request.method === 'PUT' && path === '/api/tipos/evento') {

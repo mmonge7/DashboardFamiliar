@@ -45,7 +45,7 @@ function render({ focus = false } = {}) {
   state.now = new Date();
   state.settings = getSettings();
   state.demo = isDemo(state.settings);
-  if (state.cal?.data?.events) decorate(state.cal.data.events, state.tipos, state.settings.colorPor || 'tipo');
+  if (state.cal?.data?.events) decorate(state.cal.data.events, state.tipos, state.settings.colorPor || 'tipo', state.cal.data.calendars || []);
   setTiposCfg(state.tipos);
   const view = currentView();
   const main = document.getElementById('view');

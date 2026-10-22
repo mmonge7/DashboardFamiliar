@@ -405,3 +405,8 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
 .tipo-row input[type=color] { width: 52px; height: 42px; padding: 2px; border-radius: var(--radius-sm); border: 0; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line); }
 .tipo-row input[type=text], .tipo-row select { padding: 10px 12px; border-radius: var(--radius-sm); border: 0; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line); width: 100%; min-width: 0; }
 .btn-danger { color: var(--dear); box-shadow: inset 0 0 0 1.5px currentColor; }
+.cal-row { display: grid; grid-template-columns: 52px 1fr minmax(0, 200px); gap: 10px; align-items: center; }
+.cal-row input[type=color] { width: 52px; height: 42px; padding: 2px; border-radius: var(--radius-sm); border: 0; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line); cursor: pointer; }
+.cal-row select { padding: 10px 12px; border-radius: var(--radius-sm); border: 0; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line); width: 100%; min-width: 0; }
+.cal-name { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 700; min-width: 0; }
+@media (max-width: 760px) { .cal-row { grid-template-columns: 48px 1fr; } .cal-row select { grid-column: 1 / -1; } }

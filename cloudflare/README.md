@@ -112,6 +112,9 @@ que lleva por defecto cada calendario. Cada evento, venga de donde venga, puede 
 calendario y cámbiala. Se guardan en Cloudflare y las ve toda la familia. En el calendario puedes colorear por
 tipología o por calendario, y ocultar una tipología tocándola en la leyenda.
 
+En esa misma pantalla, en **Calendarios**, puedes cambiar el **color** con el que se ve cada calendario en la app (el
+del iPhone no cambia). «Original» vuelve al color que tiene en Apple. Los colores también se comparten.
+
 ## Si algo falla
 
 | Lo que ves | Qué hacer |
