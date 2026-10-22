@@ -6,6 +6,8 @@ import { loadPrices } from './data/energy.js';
 import { loadWeather } from './data/weather.js';
 import { loadShopping } from './data/shopping.js';
 import { loadMenu } from './data/menu.js';
+import { loadTipos, decorate } from './data/events.js';
+import { setTiposCfg } from './views/common.js';
 import { renderToday } from './views/today.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderEnergy } from './views/energy.js';
@@ -25,7 +27,7 @@ const VIEWS = {
 const LIVE = new Set(['hoy', 'calendario', 'luz']);
 const REFRESH_MS = 5 * 60000;
 
-const state = { now: new Date(), cal: null, prices: null, weather: null, shop: null, menu: null };
+const state = { now: new Date(), cal: null, prices: null, weather: null, shop: null, menu: null, tipos: null };
 let wokenUntil = 0;
 
 function currentView() {
@@ -43,6 +45,8 @@ function render({ focus = false } = {}) {
   state.now = new Date();
   state.settings = getSettings();
   state.demo = isDemo(state.settings);
+  if (state.cal?.data?.events) decorate(state.cal.data.events, state.tipos, state.settings.colorPor || 'tipo');
+  setTiposCfg(state.tipos);
   const view = currentView();
   const main = document.getElementById('view');
   const scroll = main.scrollTop;
@@ -73,6 +77,7 @@ async function load(opts = {}) {
   const job = async (key, fn) => {
     try { state[key] = await fn(opts); } catch (e) { state[key] = { data: state[key]?.data || null, stale: true, error: e }; }
     const typing = document.activeElement?.tagName === 'INPUT';
+    window.dispatchEvent(new CustomEvent('casa:datos', { detail: { key, state } }));
     const own = { shop: 'compra', menu: 'menu' }[key];
     if (!typing && (LIVE.has(currentView()) || own === currentView())) render();
   };
@@ -82,6 +87,11 @@ async function load(opts = {}) {
     job('cal', loadCalendar),
     job('shop', loadShopping),
     job('menu', loadMenu),
+    (async () => {
+      try { state.tipos = await loadTipos(); } catch { /* sin tipologías */ }
+      window.dispatchEvent(new CustomEvent('casa:datos', { detail: { key: 'tipos', state } }));
+      if (LIVE.has(currentView())) render();
+    })(),
   ]).finally(() => { loading = null; });
   return loading;
 }
@@ -92,6 +102,8 @@ async function keepAwake() {
 }
 
 window.addEventListener('hashchange', () => render({ focus: true }));
+// Otras pantallas piden recargar tras crear un evento o cambiar una tipología
+window.addEventListener('casa:recargar', () => { render(); load(); });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { load(); keepAwake(); render(); }
 });

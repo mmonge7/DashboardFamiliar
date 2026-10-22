@@ -5,6 +5,7 @@ import ICAL from '../../vendor/ical.min.js';
 import { server, cached } from '../api.js';
 import { isDemo, cacheGet } from '../store.js';
 import { demoCalendar } from '../demo.js';
+import { mergePending } from './events.js';
 import { addDays, startOfWeek } from '../ui.js';
 
 const MAX_AGE = 5 * 60000;
@@ -40,8 +41,12 @@ export function parseIcs(text, cal, from, to) {
     if (end <= from || start >= to) return;
     const status = item.component.getFirstPropertyValue('status');
     if (status && String(status).toUpperCase() === 'CANCELLED') return;
+    const categories = item.component.getAllProperties('categories').flatMap((p) => p.getValues()).map(String);
     out.push({
       id: `${cal.clave}:${item.uid}:${start.toISOString()}`,
+      uid: item.uid,
+      categories,
+      tipoId: String(item.component.getFirstPropertyValue('x-casa-tipo') || ''),
       title: item.summary || '(sin título)',
       start, end,
       allDay: item.startDate.isDate,
@@ -77,7 +82,10 @@ function revive(list) {
 /** Todos los eventos de la ventana, ordenados. Devuelve { data: {calendars, events}, stale, error, demo }. */
 export async function loadCalendar({ force = false } = {}) {
   const now = new Date();
-  if (isDemo()) return { data: demoCalendar(now), demo: true, at: Date.now() };
+  if (isDemo()) {
+    const demo = demoCalendar(now);
+    return { data: { ...demo, events: mergePending(demo.events) }, demo: true, at: Date.now() };
+  }
   const { from, to } = calWindow(now);
   // Si la última copia no tenía calendarios (p. ej. antes de configurarlos), no se reutiliza
   const prev = cacheGet('calendario');
@@ -98,7 +106,7 @@ export async function loadCalendar({ force = false } = {}) {
     events.sort((a, b) => a.start - b.start || b.allDay - a.allDay);
     return { calendars, events, errors };
   }, { force });
-  if (res.data) res.data = { ...res.data, events: revive(res.data.events) };
+  if (res.data) res.data = { ...res.data, events: mergePending(revive(res.data.events)) };
   return res;
 }
 

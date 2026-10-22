@@ -75,6 +75,39 @@ En cada dispositivo: app **Casa → Ajustes → Conexión**:
 3. **Probar conexión** → debe decir «Conectado con Cloudflare: N calendarios, menú compartido, lista de la compra».
 4. **Guardar ajustes**.
 
+## 6. Crear eventos desde la app (opcional)
+
+Para que los eventos que creas en la app se guarden en tu calendario de Apple, el Worker necesita permiso para
+escribir en iCloud. Ese permiso es una **contraseña de aplicación**: no es tu contraseña de Apple, solo sirve para
+esto y la puedes revocar cuando quieras.
+
+1. Entra en [account.apple.com](https://account.apple.com) con tu Apple ID.
+2. **Inicio de sesión y seguridad → Contraseñas de aplicación → +** (o «Generar contraseña»). Ponle de nombre «Casa».
+3. Copia la contraseña que te da (del tipo `abcd-efgh-ijkl-mnop`). Apple solo la enseña una vez.
+4. En Cloudflare, en el Worker `casa` → **Settings → Variables and Secrets → Add**:
+
+| Tipo | Nombre | Valor |
+|---|---|---|
+| Secret | `ICLOUD_Marcos` | `tu-apple-id@correo.com;abcd-efgh-ijkl-mnop` (correo, punto y coma, contraseña) |
+
+5. Para otra cuenta de Apple (tu pareja, por ejemplo), esa persona crea su propia contraseña de aplicación y se añade
+   otra variable: `ICLOUD_Ana`.
+
+En la app, **Calendario → + Nuevo evento** (o toca el hueco de un día) te deja elegir en qué calendario de qué cuenta
+se guarda y su **tipología**. El evento aparece al momento en la app y en unos segundos en todos los dispositivos
+Apple de esa cuenta.
+
+> Con una contraseña de aplicación también se podría leer el correo y los contactos de esa cuenta de iCloud. El
+> Worker solo la usa para el calendario y la guarda cifrada como secreto. Si la revocas en account.apple.com, la app
+> deja de poder crear eventos, pero sigue enseñándolos.
+
+## Tipologías
+
+En **Ajustes → Tipologías de los eventos** creas las tuyas (Común, Personal, Trabajo, Bebé…) con su color, y eliges la
+que lleva por defecto cada calendario. Cada evento, venga de donde venga, puede tener la suya: tócalo en el
+calendario y cámbiala. Se guardan en Cloudflare y las ve toda la familia. En el calendario puedes colorear por
+tipología o por calendario, y ocultar una tipología tocándola en la leyenda.
+
 ## Si algo falla
 
 | Lo que ves | Qué hacer |
@@ -83,11 +116,13 @@ En cada dispositivo: app **Casa → Ajustes → Conexión**:
 | «Sin conexión con el servidor» | Revisa la dirección y que `ORIGENES` sea exactamente `https://mmonge7.github.io`. |
 | Un calendario «respondió 404» | Ya no es público o el enlace cambió: vuelve a copiarlo (paso 1). |
 | «Falta enlazar el espacio KV» | Revisa el paso 3: el nombre de la variable debe ser `CASA`. |
+| «iCloud no acepta la contraseña de aplicación» | Revisa `ICLOUD_…`: correo del Apple ID, punto y coma y la contraseña de aplicación (no la tuya). |
+| No sale un calendario al crear un evento | Los compartidos contigo solo para ver no se pueden usar. Si lo acabas de crear, espera unos minutos. |
 
 ## Qué guarda y quién lo ve
 
-- **En Cloudflare:** el token, los enlaces de los calendarios (como secretos), el menú de los últimos 6 meses y la
-  lista de la compra. Nada más.
+- **En Cloudflare:** el token, los enlaces de los calendarios y las contraseñas de aplicación (como secretos), el menú
+  de los últimos 6 meses, la lista de la compra y las tipologías. Nada más.
 - **El Worker solo responde a peticiones con el token**, y el navegador solo deja usarlo desde la web de la app.
 - Si cambias de opinión: borra el Worker y el espacio KV en Cloudflare, y desactiva «Calendario público» en Apple.
 

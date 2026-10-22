@@ -24,7 +24,8 @@ sin cuenta de desarrollador y sin ningún coste.** La misma app sirve en iPad, i
   próximo en el calendario con cuenta atrás, la semana entera con el menú del cole, el precio de la luz de ahora y lo
   que falta en la compra.
 - **Calendario de pared:** cinco semanas de lunes a domingo con el tiempo de cada día. Tocar una cita enseña el
-  detalle.
+  detalle. **Crea eventos** que se guardan en tu calendario de Apple (eliges calendario y cuenta) y clasifícalos por
+  **tipología** (Común, Personal, Trabajo o las que quieras), con colores y filtro.
 - **Menú:** la comida y la cena de cada día de la semana; se toca un día para escribirlo (sugiere platos ya usados).
   En «Hoy» aparece el menú del día y, por la tarde, la comida de mañana.
 - **Luz:** con **tu tarifa** (precio único, tres tramos o PVPC): lo que pagas ahora con impuestos, cuándo cambia de

@@ -3,11 +3,14 @@ import { h, time, cap, monthYear, addDays, startOfWeek, startOfDay, sameDay, lon
 import { eventsOn } from '../data/calendar.js';
 import { describe } from '../data/weather.js';
 import { eventRow, showEvent, demoBanner } from './common.js';
+import { openNewEvent } from './newEvent.js';
+import { getSettings, saveSettings } from '../store.js';
 
 const WEEKS = 5;
 const MAX_CHIPS = 4;
 const DOW = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 let offset = 0; // semanas desplazadas respecto a la actual (-1 … +2: lo que hay cargado)
+const hidden = new Set(); // tipologías ocultas con el filtro de la leyenda
 
 /** «Octubre de 2026» o, si las semanas cruzan de mes, «Octubre y noviembre de 2026». */
 function title(a, b) {
@@ -19,7 +22,7 @@ function title(a, b) {
 
 function chip(ev) {
   return h('button', {
-    type: 'button', class: 'chip' + (ev.allDay ? ' all-day' : ''), style: { '--c': ev.cal.color },
+    type: 'button', class: 'chip' + (ev.allDay ? ' all-day' : '') + (ev.pending ? ' pending' : ''), style: { '--c': ev.color || ev.cal.color },
     onclick: () => showEvent(ev), title: ev.title,
   }, !ev.allDay && h('b', {}, time(ev.start)), ev.title.replace(/^(Menú|Comedor):\s*/i, '🏫 '));
 }
@@ -31,8 +34,14 @@ function dayList(day, list, now) {
 }
 
 export function renderCalendar(state, rerender, reload) {
-  const { now, cal, weather, demo } = state;
-  const events = cal?.data?.events || [];
+  const { now, cal, weather, demo, tipos } = state;
+  const all = cal?.data?.events || [];
+  const events = all.filter((e) => !hidden.has(e.tipo?.id || '-'));
+  const colorPor = state.settings.colorPor || 'tipo';
+  const setColorPor = (v) => { saveSettings({ ...getSettings(), colorPor: v }); window.dispatchEvent(new Event('casa:recargar')); };
+  const toggle = (id) => { if (hidden.has(id)) hidden.delete(id); else hidden.add(id); rerender(); };
+  const legendTipos = [...(tipos?.tipos || []), { id: '-', nombre: 'Sin tipología', color: '#9AA3AE' }]
+    .filter((t) => all.some((e) => (e.tipo?.id || '-') === t.id));
   const calendars = cal?.data?.calendars || [];
   const first = addDays(startOfWeek(now), offset * 7);
   const days = Array.from({ length: WEEKS * 7 }, (_, i) => addDays(first, i));
@@ -45,8 +54,17 @@ export function renderCalendar(state, rerender, reload) {
     demo && demoBanner(),
     h('header', { class: 'page-head' },
       h('div', {}, h('h1', {}, title(first, addDays(first, WEEKS * 7 - 1))),
-        h('div', { class: 'legend', style: { marginTop: '6px' } }, calendars.map((c) => h('span', {}, h('i', { class: 'dot', style: { background: c.color } }), c.nombre)))),
+        colorPor === 'tipo' && legendTipos.length
+          ? h('div', { class: 'legend', style: { marginTop: '6px' } }, legendTipos.map((t) => h('button', {
+            type: 'button', class: 'legend-btn' + (hidden.has(t.id) ? ' off' : ''), 'aria-pressed': String(!hidden.has(t.id)),
+            onclick: () => toggle(t.id), title: hidden.has(t.id) ? 'Mostrar' : 'Ocultar',
+          }, h('i', { class: 'dot', style: { background: t.color } }), t.nombre)))
+          : h('div', { class: 'legend', style: { marginTop: '6px' } }, calendars.map((c) => h('span', {}, h('i', { class: 'dot', style: { background: c.color } }), c.nombre))),
+        h('div', { class: 'seg', role: 'group', 'aria-label': 'Colorear por' },
+          h('button', { type: 'button', 'aria-pressed': String(colorPor === 'tipo'), onclick: () => setColorPor('tipo') }, 'Por tipología'),
+          h('button', { type: 'button', 'aria-pressed': String(colorPor !== 'tipo'), onclick: () => setColorPor('calendario') }, 'Por calendario'))),
       h('div', { class: 'cal-nav' },
+        h('button', { type: 'button', class: 'btn', onclick: () => openNewEvent(null, tipos) }, '+ Nuevo evento'),
         h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => go(-1), disabled: offset <= -1 }, 'Semana anterior'),
         offset !== 0 && h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => { offset = 0; rerender(); } }, 'Hoy'),
         h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => go(1), disabled: offset >= 2 }, 'Semana siguiente'),
@@ -60,7 +78,11 @@ export function renderCalendar(state, rerender, reload) {
         if (sameDay(d, now)) cls.push('is-today');
         if (d < startOfDay(now)) cls.push('other'); // días ya pasados, más apagados
         const shown = list.slice(0, MAX_CHIPS);
-        return h('div', { class: cls.join(' '), role: 'gridcell' },
+        return h('div', {
+          class: cls.join(' '), role: 'gridcell',
+          // Tocar el hueco libre de un día crea un evento ese día
+          onclick: (e) => { if (e.target === e.currentTarget && d >= startOfDay(now)) openNewEvent(d, tipos); },
+        },
           h('div', { class: 'wall-num' }, h('b', {}, d.getDate()), w && h('small', { title: describe(w.code).text }, `${describe(w.code).icon} ${Math.round(w.max)}°`)),
           shown.map(chip),
           list.length > MAX_CHIPS && h('button', { type: 'button', class: 'chip-more', style: { border: 0, background: 'none', textAlign: 'left', cursor: 'pointer' }, onclick: () => dayList(d, list, now) }, `y ${list.length - MAX_CHIPS} más`));

@@ -6,6 +6,7 @@ import { priceAt, level, cheapestWindow } from '../data/energy.js';
 import { currentTariff, periodAt, nextChange, bestWindow, TAX, PERIOD_LABEL, PERIOD_LEVEL } from '../data/tariff.js';
 import { periodStrip } from './energy.js';
 import { menuPeek } from './menu.js';
+import { openNewEvent } from './newEvent.js';
 import { shoppingList } from '../data/shopping.js';
 import { eventRow, eventWhen, showEvent, demoBanner } from './common.js';
 
@@ -58,7 +59,7 @@ function nextPanel(now, cal) {
   } else {
     const isNow = current.includes(show);
     box.append(
-      h('span', { class: 'next-cal' }, h('i', { class: 'dot', style: { background: show.cal.color } }), show.cal.nombre),
+      h('span', { class: 'next-cal' }, h('i', { class: 'dot', style: { background: show.cal.color } }), show.cal.nombre, show.tipo && ` · ${show.tipo.nombre}`),
       h('button', { type: 'button', class: 'panel-link', style: { border: 0, background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', width: '100%' }, onclick: () => showEvent(show) },
         h('p', { class: 'next-title' }, show.title)),
       h('p', { class: 'next-when' },
@@ -73,11 +74,12 @@ function nextPanel(now, cal) {
   return box;
 }
 
-function weekPanel(now, cal) {
+function weekPanel(now, cal, tipos) {
   const events = cal?.data?.events || [];
   const days = Array.from({ length: 7 }, (_, i) => addDays(startOfDay(now), i));
   return h('section', { class: 'panel' },
-    h('h2', {}, 'Esta semana'),
+    h('div', { class: 'panel-head' }, h('h2', {}, 'Esta semana'),
+      h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: () => openNewEvent(null, tipos) }, '+ Evento')),
     h('div', { class: 'week' }, days.map((d, i) => {
       const list = eventsOn(events, d);
       const menu = list.filter((e) => e.cal.papel === 'menu');
@@ -152,5 +154,5 @@ export function renderToday(state) {
         nextPanel(now, cal),
         menuPeek(now, state.menu),
         h('div', { class: 'summary-row' }, energyPeek(now, prices, settings), shopPeek(shop))),
-      weekPanel(now, cal)));
+      weekPanel(now, cal, state.tipos)));
 }

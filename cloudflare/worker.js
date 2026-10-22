@@ -10,6 +10,10 @@
  *   PUT  /api/menu/AAAA-MM-DD {comida, cena}
  *   GET  /api/compra                    → {"listas": [...], "frecuentes": [...]}
  *   POST /api/compra/anadir {producto}  /  POST /api/compra/quitar {producto}
+ *   GET  /api/destinos[?refrescar=1]    → calendarios de iCloud donde se puede escribir [{id, cuenta, nombre, color}]
+ *   POST /api/eventos {destino, titulo, inicio, fin, todoElDia, lugar, notas, tipo} → crea el evento en iCloud
+ *   GET  /api/tipos                     → {tipos, porCalendario, eventos}  (tipologías y la de cada evento)
+ *   PUT  /api/tipos {tipos, porCalendario}  /  PUT /api/tipos/evento {uid, tipo}
  *
  * Configuración (en Cloudflare → tu Worker → Settings → Variables and Secrets):
  *   APP_TOKEN  (secreto)  el token de la app: cada petición lo trae en la cabecera X-Familia
@@ -17,7 +21,9 @@
  *   CAL_<Nombre> (secreto) un calendario por variable. Valor: el enlace (webcal://… o https://…),
  *                          o «#color;enlace», o «#color;menu;enlace» para un calendario de menú del cole.
  *                          Ej.: CAL_Familia = webcal://p123-caldav.icloud.com/published/2/XXXX
- * Y un espacio KV enlazado con el nombre de variable CASA (guarda el menú y la lista de la compra).
+ *   ICLOUD_<Cuenta> (secreto) para crear eventos: «correo-del-Apple-ID;contraseña-de-aplicación»
+ *                          (appleid.apple.com → Inicio de sesión y seguridad → Contraseñas de aplicación).
+ * Y un espacio KV enlazado con el nombre de variable CASA (guarda menú, compra y tipologías).
  */
 
 const COLORS = ['#3B6FD8', '#7A5AC8', '#2E8B6A', '#D98A1E', '#C2463D', '#1E8FA8', '#8A6D3B'];
@@ -45,7 +51,7 @@ export default {
     const path = url.pathname.replace(/\/+$/, '');
     try {
       if (request.method === 'GET' && path === '/api/estado') {
-        return reply(200, { ok: true, tipo: 'cloudflare', version: '2.0', calendarios: calendars(env).length, compra: !!env.CASA, menu: !!env.CASA });
+        return reply(200, { ok: true, tipo: 'cloudflare', version: '2.1', calendarios: calendars(env).length, compra: !!env.CASA, menu: !!env.CASA, escritura: accounts(env).length });
       }
       if (request.method === 'GET' && path === '/api/calendarios') {
         return reply(200, calendars(env).map(({ url: _u, ...c }) => c));
@@ -110,6 +116,58 @@ export default {
         await env.CASA.put('compra', JSON.stringify(shop));
         return reply(200, { quitado: producto });
       }
+      // ---------- Tipologías ----------
+      if (request.method === 'GET' && path === '/api/tipos') {
+        const cfg = (await env.CASA.get('tipos', 'json')) || {};
+        return reply(200, { tipos: cfg.tipos || null, porCalendario: cfg.porCalendario || {}, eventos: (await env.CASA.get('evtipo', 'json')) || {} });
+      }
+      if (request.method === 'PUT' && path === '/api/tipos') {
+        const body = await readJson(request, 8192);
+        const tipos = Array.isArray(body.tipos) ? body.tipos.slice(0, 20).map((t) => ({
+          id: String(t.id || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30),
+          nombre: text(t.nombre).slice(0, 30), color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : '#888888',
+        })).filter((t) => t.id && t.nombre) : [];
+        if (!tipos.length) return reply(400, { error: 'Hace falta al menos una tipología' });
+        const ids = new Set(tipos.map((t) => t.id));
+        const porCalendario = {};
+        for (const [k, v] of Object.entries(body.porCalendario || {})) if (/^[a-z0-9_-]{1,40}$/.test(k) && ids.has(v)) porCalendario[k] = v;
+        await env.CASA.put('tipos', JSON.stringify({ tipos, porCalendario }));
+        return reply(200, { ok: true });
+      }
+      if (request.method === 'PUT' && path === '/api/tipos/evento') {
+        const body = await readJson(request);
+        const uid = String(body.uid || '').slice(0, 300);
+        if (!uid) return reply(400, { error: 'Falta el evento' });
+        await setEventType(env, uid, String(body.tipo || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30));
+        return reply(200, { ok: true });
+      }
+
+      // ---------- Crear eventos en iCloud ----------
+      if (request.method === 'GET' && path === '/api/destinos') {
+        if (!accounts(env).length) return reply(404, { error: 'Para crear eventos falta configurar una cuenta de iCloud (variable ICLOUD_<Nombre> en Cloudflare)' });
+        const list = await destinations(env, url.searchParams.has('refrescar'));
+        return reply(200, list.map(({ href: _h, ...d }) => d));
+      }
+      if (request.method === 'POST' && path === '/api/eventos') {
+        const body = await readJson(request, 8192);
+        const ev = validateEvent(body);
+        let list = await destinations(env, false);
+        let dest = list.find((d) => d.id === body.destino);
+        if (!dest) { list = await destinations(env, true); dest = list.find((d) => d.id === body.destino); }
+        if (!dest) return reply(400, { error: 'Ese calendario ya no está disponible' });
+        const acc = accounts(env).find((a) => a.clave === dest.cuentaClave);
+        const uid = `${crypto.randomUUID()}@casa`;
+        const res = await fetch(dest.href.replace(/\/?$/, '/') + encodeURIComponent(uid) + '.ics', {
+          method: 'PUT',
+          headers: { Authorization: basic(acc), 'Content-Type': 'text/calendar; charset=utf-8', 'If-None-Match': '*', 'User-Agent': 'casa-familia/2.1' },
+          body: buildIcs(uid, ev),
+        });
+        if (res.status === 401 || res.status === 403) return reply(502, { error: `iCloud no deja escribir en «${dest.nombre}» (revisa la contraseña de aplicación)` });
+        if (!res.ok) return reply(502, { error: `iCloud respondió ${res.status} al crear el evento` });
+        if (ev.tipo) await setEventType(env, uid, ev.tipo);
+        return reply(201, { ok: true, uid, destino: { id: dest.id, nombre: dest.nombre, color: dest.color, cuenta: dest.cuenta } });
+      }
+
       return reply(404, { error: 'No existe' });
     } catch (e) {
       return reply(e.status || 500, { error: e.status ? e.message : 'Error del Worker' });
@@ -163,9 +221,9 @@ function shoppingView(shop) {
   };
 }
 
-async function readJson(request) {
+async function readJson(request, max = 2048) {
   const raw = await request.text();
-  if (raw.length > 2048) throw Object.assign(new Error('Petición demasiado grande'), { status: 413 });
+  if (raw.length > max) throw Object.assign(new Error('Petición demasiado grande'), { status: 413 });
   try { return JSON.parse(raw || '{}') || {}; } catch { throw Object.assign(new Error('JSON no válido'), { status: 400 }); }
 }
 
@@ -181,4 +239,153 @@ function safeEqual(a, b) {
   let diff = ea.length ^ eb.length;
   for (let i = 0; i < Math.max(ea.length, eb.length); i++) diff |= (ea[i] || 0) ^ (eb[i] || 0);
   return diff === 0;
+}
+
+// ---------- iCloud (CalDAV) ----------
+
+/** Cuentas de las variables ICLOUD_<Nombre> = «correo;contraseña-de-aplicación». */
+export function accounts(env) {
+  return Object.keys(env).filter((k) => /^ICLOUD_[A-Za-z0-9_]{1,40}$/.test(k)).sort().map((k) => {
+    const raw = String(env[k]).trim();
+    const i = raw.indexOf(';');
+    return { clave: k.slice(7).toLowerCase(), nombre: k.slice(7).replace(/_/g, ' '), user: raw.slice(0, i).trim(), pass: raw.slice(i + 1).trim() };
+  }).filter((a) => a.user && a.pass);
+}
+
+function basic(acc) {
+  const bytes = new TextEncoder().encode(`${acc.user}:${acc.pass}`);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return 'Basic ' + btoa(bin);
+}
+
+function httpError(status, message) { return Object.assign(new Error(message), { status }); }
+
+async function dav(acc, url, body, depth) {
+  const res = await fetch(url, {
+    method: 'PROPFIND', body,
+    headers: { Authorization: basic(acc), 'Content-Type': 'application/xml; charset=utf-8', Depth: String(depth), 'User-Agent': 'casa-familia/2.1' },
+  });
+  if (res.status === 401) throw httpError(502, `iCloud no acepta la contraseña de aplicación de «${acc.nombre}»`);
+  if (res.status !== 207 && !res.ok) throw httpError(502, `iCloud respondió ${res.status}`);
+  return { text: await res.text(), url: res.url || url };
+}
+
+const xmlTag = (name) => new RegExp(`<(?:[\\w-]+:)?${name}(?=[\\s/>])[^>]*>([\\s\\S]*?)</(?:[\\w-]+:)?${name}>`, 'i');
+const xmlFirst = (xml, name) => (xml.match(xmlTag(name)) || [])[1] || '';
+const xmlHas = (xml, name) => new RegExp(`<(?:[\\w-]+:)?${name}(?=[\\s/>])`, 'i').test(xml);
+const xmlDecode = (s) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&amp;/g, '&').trim();
+const xmlResponses = (xml) => xml.split(/<(?:[\w-]+:)?response(?=[\s>])[^>]*>/i).slice(1).map((r) => r.split(/<\/(?:[\w-]+:)?response>/i)[0]);
+
+/** Calendarios de una cuenta donde se pueden crear eventos. */
+export async function discover(acc) {
+  const d = 'xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:a="http://apple.com/ns/ical/"';
+  const p1 = await dav(acc, 'https://caldav.icloud.com/', `<?xml version="1.0" encoding="utf-8"?><d:propfind ${d}><d:prop><d:current-user-principal/></d:prop></d:propfind>`, 0);
+  const principalHref = xmlDecode(xmlFirst(xmlFirst(p1.text, 'current-user-principal'), 'href'));
+  if (!principalHref) throw httpError(502, `iCloud no devolvió la cuenta de «${acc.nombre}»`);
+  const p2 = await dav(acc, new URL(principalHref, p1.url).href, `<?xml version="1.0" encoding="utf-8"?><d:propfind ${d}><d:prop><c:calendar-home-set/></d:prop></d:propfind>`, 0);
+  const homeHref = xmlDecode(xmlFirst(xmlFirst(p2.text, 'calendar-home-set'), 'href'));
+  if (!homeHref) throw httpError(502, `iCloud no devolvió los calendarios de «${acc.nombre}»`);
+  const p3 = await dav(acc, new URL(homeHref, p2.url).href,
+    `<?xml version="1.0" encoding="utf-8"?><d:propfind ${d}><d:prop><d:displayname/><d:resourcetype/><c:supported-calendar-component-set/><a:calendar-color/><d:current-user-privilege-set/></d:prop></d:propfind>`, 1);
+  const out = [];
+  for (const r of xmlResponses(p3.text)) {
+    if (!xmlHas(xmlFirst(r, 'resourcetype'), 'calendar')) continue;
+    const comps = xmlFirst(r, 'supported-calendar-component-set');
+    if (comps && !/VEVENT/i.test(comps)) continue;
+    const privs = xmlFirst(r, 'current-user-privilege-set');
+    if (privs && !['write', 'write-content', 'all'].some((p) => xmlHas(privs, p))) continue;
+    const href = new URL(xmlDecode(xmlFirst(r, 'href')), p3.url).href;
+    const color = (xmlDecode(xmlFirst(r, 'calendar-color')).match(/#[0-9a-f]{6}/i) || ['#3B6FD8'])[0];
+    out.push({ href, nombre: xmlDecode(xmlFirst(r, 'displayname')) || 'Calendario', color });
+  }
+  return out;
+}
+
+async function sha(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].slice(0, 6).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Destinos de todas las cuentas, guardados 6 horas en KV. */
+async function destinations(env, refresh) {
+  if (!refresh) {
+    const cached = await env.CASA.get('destinos', 'json');
+    if (cached) return cached;
+  }
+  const list = [];
+  for (const acc of accounts(env)) {
+    for (const c of await discover(acc)) {
+      list.push({ id: await sha(`${acc.clave}|${c.href}`), cuenta: acc.nombre, cuentaClave: acc.clave, nombre: c.nombre, color: c.color, href: c.href });
+    }
+  }
+  await env.CASA.put('destinos', JSON.stringify(list), { expirationTtl: 6 * 3600 });
+  return list;
+}
+
+async function setEventType(env, uid, tipo) {
+  const map = (await env.CASA.get('evtipo', 'json')) || {};
+  if (tipo) map[uid] = tipo; else delete map[uid];
+  const keys = Object.keys(map);
+  if (keys.length > 5000) for (const k of keys.slice(0, keys.length - 5000)) delete map[k];
+  await env.CASA.put('evtipo', JSON.stringify(map));
+}
+
+/** Comprueba y normaliza los datos del evento que manda la app. */
+export function validateEvent(b) {
+  const titulo = String(b.titulo ?? '').trim().slice(0, 200);
+  if (!titulo) throw httpError(400, 'Falta el título');
+  const todoElDia = !!b.todoElDia;
+  let inicio, fin;
+  if (todoElDia) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(b.inicio || '') || !/^\d{4}-\d{2}-\d{2}$/.test(b.fin || '')) throw httpError(400, 'Fechas no válidas');
+    inicio = b.inicio; fin = b.fin;
+    if (fin <= inicio) throw httpError(400, 'El final tiene que ser posterior al inicio');
+  } else {
+    inicio = new Date(b.inicio); fin = new Date(b.fin);
+    if (isNaN(inicio) || isNaN(fin)) throw httpError(400, 'Fechas no válidas');
+    if (fin <= inicio) throw httpError(400, 'El final tiene que ser posterior al inicio');
+    if (fin - inicio > 31 * 86400000) throw httpError(400, 'Un evento puede durar como mucho 31 días');
+  }
+  return {
+    titulo, todoElDia, inicio, fin,
+    lugar: String(b.lugar ?? '').trim().slice(0, 200),
+    notas: String(b.notas ?? '').trim().slice(0, 2000),
+    tipo: String(b.tipo ?? '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30),
+    tipoNombre: String(b.tipoNombre ?? '').trim().slice(0, 30),
+  };
+}
+
+const icsText = (s) => String(s).replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/;/g, '\;').replace(/,/g, '\\,');
+const icsUtc = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+const icsDate = (s) => s.replace(/-/g, '');
+
+/** Líneas de 75 bytes como máximo (RFC 5545), sin partir caracteres. */
+function fold(line) {
+  const enc = new TextEncoder();
+  const out = [];
+  let cur = '';
+  for (const ch of Array.from(line)) {
+    if (enc.encode(cur + ch).length > (out.length ? 74 : 75)) { out.push(cur); cur = ''; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.join('\r\n ');
+}
+
+export function buildIcs(uid, ev) {
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Casa//Panel familiar//ES', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+    `UID:${uid}`, `DTSTAMP:${icsUtc(new Date())}`,
+    ev.todoElDia ? `DTSTART;VALUE=DATE:${icsDate(ev.inicio)}` : `DTSTART:${icsUtc(ev.inicio)}`,
+    ev.todoElDia ? `DTEND;VALUE=DATE:${icsDate(ev.fin)}` : `DTEND:${icsUtc(ev.fin)}`,
+    `SUMMARY:${icsText(ev.titulo)}`,
+  ];
+  if (ev.lugar) lines.push(`LOCATION:${icsText(ev.lugar)}`);
+  if (ev.notas) lines.push(`DESCRIPTION:${icsText(ev.notas)}`);
+  if (ev.tipoNombre) lines.push(`CATEGORIES:${icsText(ev.tipoNombre)}`);
+  if (ev.tipo) lines.push(`X-CASA-TIPO:${ev.tipo}`);
+  lines.push('END:VEVENT', 'END:VCALENDAR');
+  return lines.map(fold).join('\r\n') + '\r\n';
 }

@@ -1,5 +1,6 @@
 // Piezas compartidas entre pantallas: fila de evento, detalle de una cita y aviso de demostración.
-import { h, time, longDay, cap, openSheet, sameDay, addDays } from '../ui.js';
+import { h, time, longDay, cap, openSheet, sameDay, addDays, toast } from '../ui.js';
+import { setEventTipo } from '../data/events.js';
 
 export function eventWhen(ev) {
   if (ev.allDay) {
@@ -11,13 +12,37 @@ export function eventWhen(ev) {
     : `Del ${longDay(ev.start)} a las ${time(ev.start)} al ${longDay(ev.end)} a las ${time(ev.end)}`;
 }
 
+// Tipologías actuales (las pone main.js en cada repintado) para poder cambiar la de un evento desde su detalle
+let tiposCfg = null;
+export function setTiposCfg(cfg) { tiposCfg = cfg; }
+
+function tipoPicker(ev) {
+  if (!tiposCfg?.tipos?.length || !ev.uid || ev.cal.papel === 'menu') return null;
+  const sel = h('select', { 'aria-label': 'Tipología' },
+    h('option', { value: '', selected: !ev.tipo }, 'Sin tipología'),
+    tiposCfg.tipos.map((t) => h('option', { value: t.id, selected: ev.tipo?.id === t.id }, t.nombre)));
+  sel.addEventListener('change', async () => {
+    sel.disabled = true;
+    try {
+      await setEventTipo(tiposCfg, ev.uid, sel.value);
+      toast('Tipología guardada');
+      window.dispatchEvent(new Event('casa:recargar'));
+    } catch (e) { toast(`No se pudo guardar: ${e.message}`); }
+    sel.disabled = false;
+  });
+  return h('div', { class: 'field', style: { marginTop: '6px' } }, h('label', {}, 'Tipología'), sel);
+}
+
 export function showEvent(ev) {
   openSheet(h('div', { class: 'sheet-body' },
-    h('span', { class: 'next-cal' }, h('i', { class: 'dot', style: { background: ev.cal.color } }), ev.cal.nombre),
+    h('span', { class: 'next-cal' }, h('i', { class: 'dot', style: { background: ev.cal.color } }), ev.cal.nombre,
+      ev.tipo && h('span', { class: 'tipo-tag', style: { '--c': ev.tipo.color } }, ev.tipo.nombre)),
     h('h2', {}, ev.title),
     h('p', { class: 'next-when' }, eventWhen(ev)),
     ev.location && h('p', { class: 'soft' }, `📍 ${ev.location}`),
     ev.description && h('p', { class: 'sheet-desc' }, ev.description),
+    ev.pending && h('p', { class: 'note' }, 'Recién creado: aparecerá en tu iPhone en unos segundos.'),
+    tipoPicker(ev),
   ));
 }
 
@@ -30,7 +55,7 @@ export function eventRow(ev, now = new Date()) {
   return h('button', {
     type: 'button',
     class: 'ev' + (ev.end <= now ? ' past' : ''),
-    style: { '--c': ev.cal.color },
+    style: { '--c': ev.color || ev.cal.color },
     onclick: () => showEvent(ev),
     'aria-label': `${ev.title}, ${eventWhen(ev)}`,
   },

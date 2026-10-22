@@ -4,6 +4,8 @@ import { getSettings, saveSettings, DEFAULTS } from '../store.js';
 import { searchPlace } from '../data/weather.js';
 import { server } from '../api.js';
 import { PRESETS } from '../data/tariff.js';
+import { DEFAULT_TIPOS, saveTipos } from '../data/events.js';
+import { forgetDestinos } from './newEvent.js';
 
 function field(label, input, hint) {
   const id = `f-${Math.random().toString(36).slice(2, 8)}`;
@@ -197,6 +199,90 @@ export function renderSettings(state, rerender, reload) {
       h('div', { class: 'actions' },
         h('button', { type: 'submit', class: 'btn' }, 'Guardar ajustes'),
         h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => { saveSettings({ ...structuredClone(DEFAULTS), servidor: s.servidor, token: s.token }); toast('Valores por defecto restaurados'); rerender(); } }, 'Restaurar valores por defecto'))),
+    tiposPanel(state),
     h('section', { class: 'panel', style: { marginTop: '22px', maxWidth: '760px' } }, h('h2', {}, 'Instalar en el iPad o el iPhone'),
       h('p', { class: 'soft' }, 'Abre esta página en Safari, toca Compartir y elige «Añadir a pantalla de inicio». Para dejar el iPad fijo en la pared, activa Acceso Guiado en Ajustes > Accesibilidad y pulsa tres veces el botón lateral con la app abierta.')));
+}
+
+/** Tipologías de los eventos y la que lleva por defecto cada calendario. Se comparten con toda la familia. */
+function tiposPanel(state) {
+  const cfg = state.tipos || { tipos: DEFAULT_TIPOS, porCalendario: {}, eventos: {} };
+  let rows = cfg.tipos.map((t) => ({ ...t }));
+  let calendars = (state.cal?.data?.calendars || []).filter((c) => c.papel !== 'menu');
+  const list = h('div', { class: 'form', style: { gap: '10px' } });
+  const defaults = h('div', { class: 'form', style: { gap: '10px' } });
+  const status = h('p', { class: 'hint', 'aria-live': 'polite' });
+  const slug = (s) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
+  const selects = new Map();
+
+  const drawDefaults = () => {
+    defaults.replaceChildren(...(calendars.length ? calendars.map((c) => {
+      const current = selects.get(c.clave)?.value ?? cfg.porCalendario?.[c.clave] ?? '';
+      const sel = h('select', { 'aria-label': `Tipología de ${c.nombre}` },
+        h('option', { value: '' }, 'Ninguna'),
+        rows.filter((t) => t.nombre.trim()).map((t) => h('option', { value: t.id, selected: t.id === current }, t.nombre)));
+      selects.set(c.clave, sel);
+      return h('div', { class: 'tipo-row', style: { gridTemplateColumns: '1fr 1fr' } },
+        h('span', {}, h('i', { class: 'dot', style: { background: c.color, marginRight: '8px' } }), c.nombre), sel);
+    }) : [h('p', { class: 'hint' }, 'Cuando conectes tus calendarios aparecerán aquí.')]));
+  };
+  const draw = () => {
+    list.replaceChildren(...rows.map((t, i) => {
+      const color = h('input', { type: 'color', value: t.color, 'aria-label': 'Color' });
+      const name = h('input', { type: 'text', value: t.nombre, maxlength: 30, 'aria-label': 'Nombre de la tipología' });
+      color.addEventListener('input', () => { t.color = color.value; });
+      name.addEventListener('change', () => { t.nombre = name.value.trim(); if (!t.fija) t.id = slug(t.nombre) || t.id; drawDefaults(); });
+      const del = h('button', { type: 'button', class: 'btn btn-quiet btn-small', disabled: rows.length <= 1, onclick: () => { rows.splice(i, 1); draw(); } }, 'Quitar');
+      return h('div', { class: 'tipo-row' }, color, name, del);
+    }));
+    drawDefaults();
+  };
+  // Las que ya existen conservan su identificador aunque se renombren (los eventos guardan el identificador)
+  rows.forEach((t) => { t.fija = true; });
+  draw();
+  // Los calendarios y las tipologías pueden llegar después de abrir Ajustes
+  let touched = false;
+  list.addEventListener('input', () => { touched = true; });
+  const onData = (e) => {
+    if (!list.isConnected) { window.removeEventListener('casa:datos', onData); return; }
+    const st = e.detail.state;
+    if (e.detail.key === 'cal') { calendars = (st.cal?.data?.calendars || []).filter((c) => c.papel !== 'menu'); drawDefaults(); }
+    if (e.detail.key === 'tipos' && st.tipos && !touched) { Object.assign(cfg, st.tipos); rows = st.tipos.tipos.map((t) => ({ ...t, fija: true })); draw(); }
+  };
+  window.addEventListener('casa:datos', onData);
+
+  const PALETTE = ['#E8604C', '#1E8FA8', '#C2463D', '#8A6D3B', '#D98A1E', '#7A5AC8', '#2E8B6A', '#3B6FD8'];
+  const add = () => {
+    const used = new Set(rows.map((t) => t.color.toLowerCase()));
+    rows.push({ id: `tipo-${Date.now().toString(36)}`, nombre: 'Nueva', color: PALETTE.find((c) => !used.has(c.toLowerCase())) || PALETTE[0] });
+    draw();
+    list.lastChild?.querySelector('input[type=text]')?.select();
+  };
+  const save = async () => {
+    const tipos = rows.filter((t) => t.nombre.trim()).map(({ id, nombre, color }) => ({ id, nombre: nombre.trim(), color }));
+    const ids = new Set(tipos.map((t) => t.id));
+    if (!tipos.length || ids.size !== tipos.length) { status.className = 'hint status-bad'; status.textContent = 'Revisa los nombres: no pueden quedar vacíos ni repetirse.'; return; }
+    const porCalendario = {};
+    for (const [clave, sel] of selects) if (sel.value && ids.has(sel.value)) porCalendario[clave] = sel.value;
+    try {
+      await saveTipos({ tipos, porCalendario, eventos: cfg.eventos });
+      Object.assign(cfg, { tipos, porCalendario });
+      if (state.tipos !== cfg) state.tipos = { ...cfg, eventos: cfg.eventos || {} };
+      toast('Tipologías guardadas');
+      forgetDestinos();
+      window.dispatchEvent(new Event('casa:recargar'));
+    } catch (e) { status.className = 'hint status-bad'; status.textContent = `No se pudieron guardar: ${e.message}`; }
+  };
+
+  return h('section', { class: 'panel', style: { marginTop: '22px', maxWidth: '760px' } },
+    h('h2', {}, 'Tipologías de los eventos'),
+    h('p', { class: 'hint', style: { marginBottom: '12px' } },
+      cfg.shared ? 'Se comparten con toda la familia. Cada evento puede tener la suya (tócalo en el calendario para cambiarla).'
+        : 'Se guardan en este dispositivo hasta que conectes la app.'),
+    list,
+    h('div', { class: 'actions', style: { marginTop: '10px' } }, h('button', { type: 'button', class: 'btn btn-quiet', onclick: add }, 'Añadir tipología')),
+    h('h3', { style: { margin: '20px 0 10px', fontFamily: 'var(--display)' } }, 'Tipología por defecto de cada calendario'),
+    defaults,
+    status,
+    h('div', { class: 'actions', style: { marginTop: '14px' } }, h('button', { type: 'button', class: 'btn', onclick: save }, 'Guardar tipologías')));
 }
