@@ -30,7 +30,7 @@ function dayList(day, list, now) {
     h('div', { class: 'wk-events', style: { marginTop: '8px' } }, list.map((e) => eventRow(e, now)))));
 }
 
-export function renderCalendar(state, rerender) {
+export function renderCalendar(state, rerender, reload) {
   const { now, cal, weather, demo } = state;
   const events = cal?.data?.events || [];
   const calendars = cal?.data?.calendars || [];
@@ -49,7 +49,8 @@ export function renderCalendar(state, rerender) {
       h('div', { class: 'cal-nav' },
         h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => go(-1), disabled: offset <= -1 }, 'Semana anterior'),
         offset !== 0 && h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => { offset = 0; rerender(); } }, 'Hoy'),
-        h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => go(1), disabled: offset >= 2 }, 'Semana siguiente'))),
+        h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => go(1), disabled: offset >= 2 }, 'Semana siguiente'),
+        !demo && h('button', { type: 'button', class: 'btn btn-quiet', onclick: (e) => { e.currentTarget.disabled = true; e.currentTarget.textContent = 'Actualizando…'; reload({ force: true }); } }, 'Actualizar'))),
     h('div', { class: 'wall', role: 'grid' },
       DOW.map((d) => h('div', { class: 'wall-head', role: 'columnheader' }, d)),
       days.map((d) => {

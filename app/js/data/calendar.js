@@ -3,11 +3,11 @@
 // con sus excepciones (EXDATE, RECURRENCE-ID).
 import ICAL from '../../vendor/ical.min.js';
 import { server, cached } from '../api.js';
-import { isDemo } from '../store.js';
+import { isDemo, cacheGet } from '../store.js';
 import { demoCalendar } from '../demo.js';
 import { addDays, startOfWeek } from '../ui.js';
 
-const MAX_AGE = 10 * 60000;
+const MAX_AGE = 5 * 60000;
 const MAX_OCCURRENCES = 20000; // tope por evento repetido (evita bucles con reglas raras)
 
 /** Ventana que se lee: desde el lunes de la semana pasada hasta 6 semanas después. */
@@ -79,6 +79,9 @@ export async function loadCalendar({ force = false } = {}) {
   const now = new Date();
   if (isDemo()) return { data: demoCalendar(now), demo: true, at: Date.now() };
   const { from, to } = calWindow(now);
+  // Si la última copia no tenía calendarios (p. ej. antes de configurarlos), no se reutiliza
+  const prev = cacheGet('calendario');
+  if (prev && !prev.data?.calendars?.length) force = true;
   const res = await cached('calendario', MAX_AGE, async () => {
     const calendars = await server('calendarios');
     const events = [];
