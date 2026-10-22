@@ -6,6 +6,7 @@ import { server } from '../api.js';
 import { PRESETS } from '../data/tariff.js';
 import { DEFAULT_TIPOS, saveTipos } from '../data/events.js';
 import { forgetDestinos } from './newEvent.js';
+import { saveDiet } from '../data/diet.js';
 
 function field(label, input, hint) {
   const id = `f-${Math.random().toString(36).slice(2, 8)}`;
@@ -199,6 +200,7 @@ export function renderSettings(state, rerender, reload) {
       h('div', { class: 'actions' },
         h('button', { type: 'submit', class: 'btn' }, 'Guardar ajustes'),
         h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => { saveSettings({ ...structuredClone(DEFAULTS), servidor: s.servidor, token: s.token }); toast('Valores por defecto restaurados'); rerender(); } }, 'Restaurar valores por defecto'))),
+    dietPanel(state),
     tiposPanel(state),
     h('section', { class: 'panel', style: { marginTop: '22px', maxWidth: '760px' } }, h('h2', {}, 'Instalar en el iPad o el iPhone'),
       h('p', { class: 'soft' }, 'Abre esta página en Safari, toca Compartir y elige «Añadir a pantalla de inicio». Para dejar el iPad fijo en la pared, activa Acceso Guiado en Ajustes > Accesibilidad y pulsa tres veces el botón lateral con la app abierta.')));
@@ -301,4 +303,39 @@ function tiposPanel(state) {
     defaults,
     status,
     h('div', { class: 'actions', style: { marginTop: '14px' } }, h('button', { type: 'button', class: 'btn', onclick: save }, 'Guardar tipologías y colores')));
+}
+
+/** Cargar el menú de la nutricionista (archivo .json que prepara Claude a partir del PDF). */
+function dietPanel(state) {
+  const plan = state.diet?.data;
+  const status = h('p', { class: 'hint', 'aria-live': 'polite' });
+  const file = h('input', { type: 'file', accept: '.json,application/json' });
+  file.addEventListener('change', async () => {
+    const f = file.files?.[0];
+    if (!f) return;
+    status.className = 'hint'; status.textContent = 'Cargando…';
+    try {
+      const plan2 = JSON.parse(await f.text());
+      await saveDiet(plan2);
+      status.className = 'hint status-ok';
+      status.textContent = `Menú cargado: ${plan2.personas.map((p) => p.nombre).join(' y ')}.`;
+      toast('Menú de la nutricionista cargado');
+      window.dispatchEvent(new CustomEvent('casa:recargar', { detail: { force: true } }));
+    } catch (e) {
+      status.className = 'hint status-bad';
+      status.textContent = e instanceof SyntaxError ? 'Ese archivo no es un menú válido (.json).' : `No se pudo cargar: ${e.message}`;
+    }
+    file.value = '';
+  });
+  const fd = (iso) => new Date(`${iso}T12:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
+  return h('section', { class: 'panel', style: { marginTop: '22px', maxWidth: '760px' } },
+    h('h2', {}, 'Menú de la nutricionista'),
+    plan
+      ? h('p', { class: 'soft', style: { marginBottom: '10px' } },
+        `${plan.personas.map((p) => p.nombre).join(' y ')}${plan.inicio && plan.fin ? `, del ${fd(plan.inicio)} al ${fd(plan.fin)}` : ''}.`)
+      : h('p', { class: 'soft', style: { marginBottom: '10px' } }, 'Todavía no hay ninguno cargado.'),
+    h('p', { class: 'hint', style: { marginBottom: '10px' } },
+      state.demo ? 'Sin conexión se guarda solo en este dispositivo.' : 'Se guarda en tu Cloudflare (no en GitHub) y lo ven todos vuestros dispositivos.'),
+    h('label', { class: 'btn btn-quiet file-btn' }, plan ? 'Cargar un menú nuevo (.json)' : 'Cargar el menú (.json)', file),
+    status);
 }

@@ -152,7 +152,7 @@ export function renderToday(state) {
     h('div', { class: 'today-grid' },
       h('div', { class: 'today-left' },
         nextPanel(now, cal),
-        menuPeek(now, state.menu),
+        menuPeek(now, state.menu, state.diet),
         h('div', { class: 'summary-row' }, energyPeek(now, prices, settings), shopPeek(shop))),
       weekPanel(now, cal, state.tipos)));
 }

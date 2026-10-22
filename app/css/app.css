@@ -157,7 +157,7 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
 .now-weather b { font-size: 1.6rem; font-weight: 700; }
 
 .today-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 22px; align-items: start; }
-.today-left { display: grid; gap: 22px; }
+.today-left { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; min-width: 0; }
 @media (max-width: 1000px) {
   .today-grid { grid-template-columns: 1fr; }
   .sky { grid-template-columns: 1fr; }
@@ -170,7 +170,7 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
 .next-cal { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-muted); font-size: 0.95rem; }
 .now-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--ink); color: var(--paper); font-weight: 700; font-size: 0.85rem; margin-right: 8px; }
 
-.summary-row { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.summary-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; }
 .big-figure { font-family: var(--display); font-weight: 800; font-size: 2.6rem; line-height: 1; font-variant-numeric: tabular-nums; }
 .big-figure small { font-size: 1rem; font-weight: 600; color: var(--ink-muted); margin-left: 4px; }
 .price-tag { display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: 0.9rem; }
@@ -410,3 +410,47 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
 .cal-row select { padding: 10px 12px; border-radius: var(--radius-sm); border: 0; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line); width: 100%; min-width: 0; }
 .cal-name { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 700; min-width: 0; }
 @media (max-width: 760px) { .cal-row { grid-template-columns: 48px 1fr; } .cal-row select { grid-column: 1 / -1; } }
+
+/* ---------- Menú de la nutricionista ---------- */
+.day-tabs { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-bottom: 14px; }
+.day-tabs button { border: 0; cursor: pointer; padding: 8px 4px; border-radius: 14px; background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--line); font-family: var(--display); font-weight: 700; color: var(--ink-soft); }
+.day-tabs button small { display: block; font-weight: 400; color: var(--ink-muted); }
+.day-tabs button.is-today { color: var(--accent); }
+.day-tabs button[aria-selected="true"] { background: var(--ink); color: var(--paper); box-shadow: none; }
+.day-tabs button[aria-selected="true"] small { color: var(--paper); opacity: 0.75; }
+.tupper-line { margin: 0 0 14px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--cheap-bg); color: var(--ink); font-weight: 700; }
+.panel .tupper-line { margin: 12px 0 0; }
+.diet { padding-top: 8px; padding-bottom: 8px; }
+.diet-row { display: grid; grid-template-columns: 120px repeat(var(--n), minmax(0, 1fr)); gap: 18px; padding: 14px 0; border-top: 1px solid var(--line); align-items: start; }
+.diet-row:first-child, .diet-head + .diet-row { border-top: 0; }
+.diet-head { padding-bottom: 4px; }
+.diet-head h2 { margin: 0; }
+.diet-row.is-now { background: color-mix(in srgb, var(--accent) 7%, transparent); margin: 0 -22px; padding-left: 22px; padding-right: 22px; }
+.diet-toma { font-family: var(--display); font-weight: 700; }
+.diet-toma small { display: block; color: var(--accent); font-weight: 700; }
+.diet-who { display: none; font-family: var(--display); font-size: 0.82rem; color: var(--ink-muted); font-weight: 700; }
+.toma-plato { font-family: var(--display); font-weight: 700; font-size: 1.08rem; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.toma-sub { font-family: var(--display); font-weight: 700; font-size: 0.85rem; color: var(--ink-muted); margin-top: 6px; }
+.toma-opciones { font-size: 0.95rem; }
+.tag-tupper { font-size: 0.78rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--cheap-bg); color: var(--cheap); }
+.ing { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+.ing li { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dotted var(--line); padding: 2px 0; }
+.ing li b { font-family: var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ing li b.free { font-weight: 400; color: var(--ink-muted); font-size: 0.88rem; }
+.ing-compact li { border-bottom: 0; padding: 0; font-size: 0.95rem; }
+.cook-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.peek-person { margin-top: 10px; }
+.peek-person .diet-who { display: block; }
+.shop-check { display: grid; gap: 8px; }
+.shop-check label { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; }
+.shop-check b { font-family: var(--display); font-variant-numeric: tabular-nums; }
+.file-btn { display: inline-block; position: relative; overflow: hidden; }
+.file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+@media (max-width: 760px) {
+  .diet-row { grid-template-columns: 1fr; gap: 8px; }
+  .diet-head { display: none; }
+  .diet-who { display: block; }
+  .diet-row.is-now { margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+  .day-tabs { gap: 4px; }
+  .day-tabs button { padding: 6px 2px; font-size: 0.85rem; }
+}

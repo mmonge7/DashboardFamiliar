@@ -15,6 +15,7 @@
  *   GET  /api/eventos                   → {eventos: [{uid, ics, destino, tipo}], borrados: [uid]}: los creados desde la
  *                                          app, leídos de iCloud en ese momento (si se borran en el iPhone, desaparecen)
  *   PUT  /api/eventos/<uid> {…}  /  DELETE /api/eventos/<uid>   → editar o borrar uno creado desde la app
+ *   GET  /api/dieta  /  PUT /api/dieta   → el menú de la nutricionista (un JSON; ver app/js/data/diet.js)
  *   GET  /api/tipos                     → {tipos, porCalendario, colores, eventos}  (tipologías, colores de calendario…)
  *   PUT  /api/tipos {tipos, porCalendario, colores}  /  PUT /api/tipos/evento {uid, tipo}
  *
@@ -54,7 +55,7 @@ export default {
     const path = url.pathname.replace(/\/+$/, '');
     try {
       if (request.method === 'GET' && path === '/api/estado') {
-        return reply(200, { ok: true, tipo: 'cloudflare', version: '2.3', calendarios: calendars(env).length, compra: !!env.CASA, menu: !!env.CASA, escritura: accounts(env).length });
+        return reply(200, { ok: true, tipo: 'cloudflare', version: '2.4', calendarios: calendars(env).length, compra: !!env.CASA, menu: !!env.CASA, dieta: !!env.CASA, escritura: accounts(env).length });
       }
       if (request.method === 'GET' && path === '/api/calendarios') {
         return reply(200, calendars(env).map(({ url: _u, ...c }) => c));
@@ -119,6 +120,21 @@ export default {
         await env.CASA.put('compra', JSON.stringify(shop));
         return reply(200, { quitado: producto });
       }
+      // ---------- Menú de la nutricionista ----------
+      if (request.method === 'GET' && path === '/api/dieta') {
+        const d = await env.CASA.get('dieta', 'json');
+        return d ? reply(200, d) : reply(404, { error: 'Todavía no hay menú de la nutricionista' });
+      }
+      if (request.method === 'PUT' && path === '/api/dieta') {
+        const body = await readJson(request, 200000);
+        if (!Array.isArray(body.personas) || !body.personas.length || !body.personas.every((p) => p && p.id && p.semana)) {
+          return reply(400, { error: 'El archivo no parece un menú (faltan «personas»)' });
+        }
+        body.subido = new Date().toISOString();
+        await env.CASA.put('dieta', JSON.stringify(body));
+        return reply(200, { ok: true });
+      }
+
       // ---------- Tipologías ----------
       if (request.method === 'GET' && path === '/api/tipos') {
         const cfg = (await env.CASA.get('tipos', 'json')) || {};

@@ -6,6 +6,7 @@ import { loadPrices } from './data/energy.js';
 import { loadWeather } from './data/weather.js';
 import { loadShopping } from './data/shopping.js';
 import { loadMenu } from './data/menu.js';
+import { loadDiet } from './data/diet.js';
 import { loadTipos, decorate } from './data/events.js';
 import { setTiposCfg } from './views/common.js';
 import { renderToday } from './views/today.js';
@@ -27,7 +28,7 @@ const VIEWS = {
 const LIVE = new Set(['hoy', 'calendario', 'luz']);
 const REFRESH_MS = 5 * 60000;
 
-const state = { now: new Date(), cal: null, prices: null, weather: null, shop: null, menu: null, tipos: null };
+const state = { now: new Date(), cal: null, prices: null, weather: null, shop: null, menu: null, tipos: null, diet: null };
 let wokenUntil = 0;
 
 function currentView() {
@@ -78,7 +79,7 @@ async function load(opts = {}) {
     try { state[key] = await fn(opts); } catch (e) { state[key] = { data: state[key]?.data || null, stale: true, error: e }; }
     const typing = document.activeElement?.tagName === 'INPUT';
     window.dispatchEvent(new CustomEvent('casa:datos', { detail: { key, state } }));
-    const own = { shop: 'compra', menu: 'menu' }[key];
+    const own = { shop: 'compra', menu: 'menu', diet: 'menu' }[key];
     if (!typing && (LIVE.has(currentView()) || own === currentView())) render();
   };
   loading = Promise.all([
@@ -87,6 +88,7 @@ async function load(opts = {}) {
     job('cal', loadCalendar),
     job('shop', loadShopping),
     job('menu', loadMenu),
+    job('diet', loadDiet),
     (async () => {
       try { state.tipos = await loadTipos(); } catch { /* sin tipologías */ }
       window.dispatchEvent(new CustomEvent('casa:datos', { detail: { key: 'tipos', state } }));

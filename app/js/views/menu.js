@@ -1,6 +1,7 @@
 // Menú: comida y cena de cada día de la semana. Tocar un día lo edita.
 import { h, cap, addDays, startOfWeek, sameDay, dayLabel, longDay, openSheet, toast, statusNote } from '../ui.js';
 import { saveDay, knownDishes, ymd } from '../data/menu.js';
+import { renderDiet, dietPeek } from './diet.js';
 
 let offset = 0; // semanas respecto a la actual (-1 … +3)
 
@@ -33,6 +34,11 @@ function dish(value, label) {
 }
 
 export function renderMenu(state, rerender, reload) {
+  if (state.diet?.data) return renderDiet(state, rerender, reload);
+  return renderPlanner(state, rerender, reload);
+}
+
+function renderPlanner(state, rerender, reload) {
   const { now, menu } = state;
   const dias = menu?.data?.dias || {};
   const dishes = knownDishes(dias);
@@ -48,6 +54,9 @@ export function renderMenu(state, rerender, reload) {
         h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => go(-1), disabled: offset <= -1 }, 'Semana anterior'),
         offset !== 0 && h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => { offset = 0; rerender(); } }, 'Esta semana'),
         h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => go(1), disabled: offset >= 3 }, 'Semana siguiente'))),
+    h('div', { class: 'banner' },
+      h('span', {}, '¿Tenéis menú de la nutricionista? Cárgalo en Ajustes y verás cada toma con sus cantidades.'),
+      h('a', { href: '#/ajustes' }, 'Cargar menú')),
     menu && !menu.shared && h('div', { class: 'banner' },
       h('span', {}, 'El menú se guarda solo en este dispositivo. Para verlo en todos, conecta la app.'),
       h('a', { href: '#/ajustes' }, 'Conectar')),
@@ -66,7 +75,8 @@ export function renderMenu(state, rerender, reload) {
 }
 
 /** Panel de «Hoy»: comida y cena de hoy; por la tarde destaca la cena y adelanta la comida de mañana. */
-export function menuPeek(now, menu) {
+export function menuPeek(now, menu, diet) {
+  if (diet?.data) return dietPeek(now, diet);
   const dias = menu?.data?.dias || {};
   const e = dias[ymd(now)] || {};
   const tarde = now.getHours() >= 16;
