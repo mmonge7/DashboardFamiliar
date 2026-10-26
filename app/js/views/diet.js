@@ -50,8 +50,10 @@ function shoppingSheet(plan, reload) {
   };
   const close = openSheet(h('form', { class: 'form', onsubmit: add },
     h('h2', {}, 'Compra de la semana'),
-    h('p', { class: 'hint' }, 'Una semana completa del menú para los dos. Desmarca lo que ya tengas en casa.'),
-    h('div', { class: 'shop-check' }, rows.map((r) => h('label', { class: 'switch' }, r.check, r.x.ingrediente, h('b', {}, qty(r.x))))),
+    h('p', { class: 'hint' }, 'Una semana completa del menú para los dos, agrupada por producto y en peso de compra. Desmarca lo que ya tengas en casa.'),
+    h('div', { class: 'shop-check' }, rows.map((r) => h('label', { class: 'switch' }, r.check,
+      h('span', { class: 'shop-name' }, r.x.ingrediente, r.x.desglose && h('small', {}, `${r.x.crudo ? 'En crudo · ' : ''}${r.x.desglose}`)),
+      h('b', {}, qty(r.x))))),
     opciones.length && h('p', { class: 'toma-sub', style: { marginTop: '6px' } }, 'Para media mañana y merienda (a elegir)'),
     h('div', { class: 'shop-check' }, optRows.map((r) => h('label', { class: 'switch' }, r.check, r.x.ingrediente))),
     h('div', { class: 'actions' }, h('button', { type: 'submit', class: 'btn' }, 'Añadir a la compra'))));

@@ -491,3 +491,7 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
   .day-tabs { gap: 4px; }
   .day-tabs button { padding: 6px 2px; font-size: 0.85rem; }
 }
+
+.shop-check .switch { align-items: flex-start; }
+.shop-name { flex: 1; min-width: 0; }
+.shop-name small { display: block; color: var(--ink-muted); font-size: 0.82rem; margin-top: 2px; }

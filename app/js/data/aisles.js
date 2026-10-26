@@ -38,7 +38,7 @@ const PALABRAS = {
     germinado, endibia, escarola, nabo, chirivia, hinojo, edamame`,
   pan: `pan, barra de pan, baguette, chapata, hogaza, pan de molde, pan integral, bollo, croissant, cruasan, napolitana,
     ensaimada, magdalena, bizcocho, tosta, tostada, biscote, pan tostado, wasa, tosta wasa, picos, regana, colin,
-    pan rallado, tortilla de trigo, wrap, pita, pan de pita, brioche`,
+    pan rallado, tortilla de trigo, tortilla de fajita, fajita, wrap, pita, pan de pita, brioche`,
   carne: `carne, pollo, pechuga, pechuga de pollo, muslo, contramuslo, alita, pavo, ternera, vaca, buey, filete, solomillo,
     lomo, cerdo, costilla, chuleta, secreto, presa, pluma, carrillera, cordero, conejo, carne picada, picada, hamburguesa,
     albondiga, salchicha, butifarra, chistorra, morcilla, entrecot, redondo, aguja, falda, codillo, higado, pato, codorniz,
