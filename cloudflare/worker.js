@@ -10,6 +10,7 @@
  *   PUT  /api/menu/AAAA-MM-DD {comida, cena}
  *   GET  /api/compra                    → {"listas": [...], "frecuentes": [...]}
  *   POST /api/compra/anadir {producto}  /  POST /api/compra/quitar {producto}
+ *   POST /api/compra/vaciar {productos: [...]}   → tacha varios de una vez («Marcar todos»)
  *   GET  /api/compra/secciones  /  POST {producto, seccion}   → secciones del súper aprendidas para cada producto
  *   GET  /api/destinos[?refrescar=1]    → calendarios de iCloud donde se puede escribir [{id, cuenta, nombre, color}]
  *   POST /api/eventos {destino, titulo, inicio, fin, todoElDia, lugar, notas, tipo} → crea el evento en iCloud
@@ -56,7 +57,7 @@ export default {
     const path = url.pathname.replace(/\/+$/, '');
     try {
       if (request.method === 'GET' && path === '/api/estado') {
-        return reply(200, { ok: true, tipo: 'cloudflare', version: '2.5', calendarios: calendars(env).length, compra: !!env.CASA, menu: !!env.CASA, dieta: !!env.CASA, escritura: accounts(env).length });
+        return reply(200, { ok: true, tipo: 'cloudflare', version: '2.6', calendarios: calendars(env).length, compra: !!env.CASA, menu: !!env.CASA, dieta: !!env.CASA, escritura: accounts(env).length });
       }
       if (request.method === 'GET' && path === '/api/calendarios') {
         return reply(200, calendars(env).map(({ url: _u, ...c }) => c));
@@ -98,6 +99,7 @@ export default {
 
       // Secciones del súper aprendidas (lo que se cambia a mano en la lista de la compra)
       if (path === '/api/compra/secciones') { if (request.method === 'GET') return reply(200, (await env.CASA.get('secciones', 'json')) || {}); if (request.method === 'POST') { const b = await readJson(request); const k = norm(text(b.producto)); const sec = String(b.seccion || '').slice(0, 30); if (!k) return reply(400, { error: 'Falta el producto' }); const m = (await env.CASA.get('secciones', 'json')) || {}; if (sec) m[k] = sec; else delete m[k]; const ks = Object.keys(m); if (ks.length > 500) delete m[ks[0]]; await env.CASA.put('secciones', JSON.stringify(m)); return reply(200, { ok: true }); } }
+      if (request.method === 'POST' && path === '/api/compra/vaciar') { const b = await readJson(request, 20000); const ks = new Set((Array.isArray(b.productos) ? b.productos : []).map((x) => norm(text(x)))); const shop = await loadShop(env); const quitados = shop.items.filter((i) => ks.has(norm(i.producto))).map((i) => i.producto); shop.items = shop.items.filter((i) => !ks.has(norm(i.producto))); await env.CASA.put('compra', JSON.stringify(shop)); return reply(200, { quitados }); }
       if (request.method === 'GET' && path === '/api/compra') {
         return reply(200, shoppingView(await loadShop(env)));
       }

@@ -55,3 +55,26 @@ export async function addItem(producto) {
   await server('compra/anadir', { method: 'POST', body: { producto } });
   patchCache(add);
 }
+
+/** Tacha todo lo de la lista. Devuelve los que se han tachado (para poder deshacer). */
+export async function markAllBought(items) {
+  const productos = items.map((i) => i.producto);
+  if (!isDemo()) {
+    try {
+      const r = await server('compra/vaciar', { method: 'POST', body: { productos } });
+      const gone = new Set(r.quitados);
+      patchCache((d) => { const l = shoppingList(d); if (l) l.items = l.items.filter((i) => !gone.has(i.producto)); if (d.items) d.items = d.items.filter((i) => !gone.has(i.producto)); });
+      return r.quitados;
+    } catch (e) { if (e.status !== 404) throw e; } // servidor sin «vaciar»: uno a uno
+  }
+  const done = [];
+  for (const i of items) {
+    try { await markBought(i.producto); done.push(i.producto); } catch (e) { if (e.status !== 409) throw e; }
+  }
+  return done;
+}
+
+/** Vuelve a añadir varios productos (deshacer «Marcar todos»). */
+export async function addMany(productos) {
+  for (const p of [...productos].reverse()) await addItem(p);
+}

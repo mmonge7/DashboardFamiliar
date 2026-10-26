@@ -46,6 +46,10 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
+/* Como una app: sin zoom al tocar dos veces, ni al enfocar una caja de texto (iOS amplía si la letra es < 16 px) */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+input, select, textarea { font-size: max(16px, 1em); }
+button, .rail a, .chip, .seg, .day-tabs { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 body {
   background: var(--paper);
   color: var(--ink);
@@ -495,3 +499,6 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
 .shop-check .switch { align-items: flex-start; }
 .shop-name { flex: 1; min-width: 0; }
 .shop-name small { display: block; color: var(--ink-muted); font-size: 0.82rem; margin-top: 2px; }
+
+.list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.btn-small { padding: 6px 12px; font-size: 0.9rem; }

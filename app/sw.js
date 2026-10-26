@@ -1,7 +1,7 @@
 // Service worker: guarda la app para que abra al instante y sin conexión.
 // Los datos (calendario, luz, compra) no pasan por aquí: la app guarda su propia copia.
 // Cambia VERSION en cada publicación para que los dispositivos descarguen la nueva.
-const VERSION = 'casa-v12';
+const VERSION = 'casa-v13';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/store.js', 'js/api.js', 'js/ui.js', 'js/demo.js',

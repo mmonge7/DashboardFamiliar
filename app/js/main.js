@@ -120,3 +120,6 @@ keepAwake();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => { /* sin modo sin conexión */ });
 }
+
+// iOS ignora «user-scalable=no» para el pellizco: lo bloqueamos aquí para que se comporte como una app
+for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });

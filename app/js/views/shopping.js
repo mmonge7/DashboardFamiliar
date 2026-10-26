@@ -1,6 +1,6 @@
 // Compra y tareas de casa. Tocar un producto lo tacha (en Bring!, y de ahí en Alexa); se puede deshacer.
 import { h, toast, statusNote, startOfDay, dayLabel, openSheet } from '../ui.js';
-import { shoppingList, markBought, addItem } from '../data/shopping.js';
+import { shoppingList, markBought, addItem, markAllBought, addMany } from '../data/shopping.js';
 import { demoBanner } from './common.js';
 import { SECCIONES, SECCION, classify, groupByAisle, setSeccion } from '../data/aisles.js';
 
@@ -73,8 +73,26 @@ export function renderShopping(state, rerender, reload) {
 
   if (refocus) { refocus = false; setTimeout(() => input.focus({ preventScroll: true }), 0); }
 
+  const markAll = async (e) => {
+    const btn = e.currentTarget;
+    const items = list?.items || [];
+    if (!items.length) return;
+    btn.disabled = true; btn.textContent = 'Marcando…';
+    document.querySelectorAll('.items .item').forEach((li) => li.classList.add('done'));
+    try {
+      const done = await markAllBought(items);
+      toast(`${done.length} ${done.length === 1 ? 'producto marcado' : 'productos marcados'} como comprados`, {
+        action: 'Deshacer',
+        ms: 8000, onAction: async () => { try { await addMany(done); reload(); } catch (err) { toast(err.message); } },
+      });
+    } catch (err) { toast(`No se pudieron marcar todos: ${err.message}`); }
+    reload();
+  };
+
   const shopPanel = h('section', { class: 'panel' },
-    h('h2', {}, list?.nombre || 'Lista de la compra'),
+    h('div', { class: 'list-head' },
+      h('h2', {}, list?.nombre || 'Lista de la compra'),
+      list?.items?.length > 1 && h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: markAll }, 'Marcar todos')),
     h('form', { class: 'add-row', onsubmit: submit }, input, h('button', { type: 'submit', class: 'btn' }, 'Añadir')),
     !list ? h('p', { class: 'empty' }, shop ? 'No se pudo cargar la lista.' : 'Cargando la lista…')
       : list.items.length === 0 ? h('p', { class: 'empty' }, 'No falta nada. Añade lo que se acabe o díselo a Alexa.')
