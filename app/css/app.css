@@ -206,7 +206,14 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
 /* ---------- Calendario de pared ---------- */
 .legend { display: flex; flex-wrap: wrap; gap: 14px; color: var(--ink-soft); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
-.cal-nav { display: flex; gap: 8px; }
+.cal-nav { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cal-nav .btn { white-space: nowrap; }
+.cal-nav .sm { display: none; }
+.nav-group { display: inline-flex; gap: 0; }
+.nav-group .btn { border-radius: 0; }
+.nav-group .btn:first-child { border-radius: 999px 0 0 999px; }
+.nav-group .btn:last-child { border-radius: 0 999px 999px 0; }
+.nav-group .btn + .btn { margin-left: -1.5px; }
 .wall { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-radius: var(--radius-lg); overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); background: var(--line); gap: 1px; }
 .wall-head { background: var(--paper); padding: 8px 10px; font-family: var(--display); font-weight: 600; color: var(--ink-muted); }
 .wall-cell { background: var(--surface); min-height: 128px; padding: 8px 8px 10px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -229,6 +236,18 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
   .chip { font-size: 0.7rem; padding: 2px 4px; }
   .chip b { display: none; }
   .wall-head { padding: 6px 4px; font-size: 0.8rem; text-align: center; }
+  .cal-nav { width: 100%; flex-wrap: nowrap; gap: 6px; }
+  .cal-nav .btn { padding: 8px 12px; font-size: 0.92rem; }
+  .cal-nav .lg { display: none; }
+  .cal-nav .sm { display: inline; }
+  .cal-nav .nav-group { margin-left: auto; }
+  .cal-nav .nav-group .btn { min-width: 40px; padding: 8px 10px; }
+  .cal-nav .btn-icon { width: 38px; padding: 8px 0; text-align: center; }
+  .page-head h1 { font-size: 1.55rem; }
+  .sheet { padding: 12px; }
+  .sheet-card { max-height: calc(100dvh - 24px - env(safe-area-inset-bottom)); }
+  .sheet-scroll { padding: 14px 18px 18px; }
+  .sheet-head { padding-left: 18px; }
 }
 
 /* ---------- Luz ---------- */
@@ -301,9 +320,15 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
 /* ---------- Hoja y aviso ---------- */
 .sheet { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(10, 14, 20, 0.45); }
 .sheet[hidden] { display: none; }
-.sheet-card { width: min(560px, 100%); max-height: 86dvh; overflow: auto; background: var(--surface); border-radius: var(--radius-lg); padding: 24px; display: grid; gap: 10px; }
-.sheet-card h2 { font-size: 1.6rem; }
-.sheet-close { justify-self: end; margin-top: 8px; }
+.sheet-card { width: min(560px, 100%); max-height: 86dvh; background: var(--surface); border-radius: var(--radius-lg); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 18px 50px rgba(10, 14, 20, 0.25); }
+.sheet-frame { display: flex; flex-direction: column; min-height: 0; flex: 1; gap: 0; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 14px 12px 24px; border-bottom: 1px solid var(--line); flex: none; }
+.sheet-head h2 { font-size: 1.35rem; margin: 0; min-width: 0; }
+.sheet-x { flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--paper); color: var(--ink); font-size: 1.5rem; line-height: 1; cursor: pointer; display: grid; place-items: center; }
+.sheet-x:hover { background: var(--line); }
+.sheet-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px 24px 20px; display: grid; gap: 10px; align-content: start; }
+.sheet-foot { flex: none; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--surface); }
+.sheet-foot .actions { justify-content: flex-end; margin: 0 !important; }
 .sheet-desc { white-space: pre-wrap; color: var(--ink-soft); }
 .toast {
   position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 24px); transform: translateX(-50%); z-index: 30;

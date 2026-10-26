@@ -116,14 +116,24 @@ export function openSheet(content) {
   const sheet = document.getElementById('sheet');
   const close = () => { sheet.hidden = true; sheet.replaceChildren(); document.removeEventListener('keydown', onKey); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
-  const card = h('div', { class: 'sheet-card', role: 'dialog', 'aria-modal': 'true' },
-    content,
-    h('button', { type: 'button', class: 'btn sheet-close', onclick: close }, 'Cerrar'));
+  // Cabecera fija (título + ×), cuerpo con scroll y pie fijo con los botones de acción (abajo a la derecha).
+  // Se reorganiza dentro del propio contenido para que, si es un formulario, «Guardar» siga enviándolo.
+  const kids = [...content.children];
+  const title = kids.find((c) => c.tagName === 'H2');
+  const actions = kids.filter((c) => c.classList.contains('actions')).pop();
+  const x = h('button', { type: 'button', class: 'sheet-x', 'aria-label': 'Cerrar', title: 'Cerrar', onclick: close }, '×');
+  const body = h('div', { class: 'sheet-scroll' });
+  for (const n of [...content.childNodes]) if (n !== title && n !== actions) body.append(n);
+  content.replaceChildren(h('div', { class: 'sheet-head' }, title || h('span'), x), body);
+  if (actions) content.append(h('div', { class: 'sheet-foot' }, actions));
+  content.classList.add('sheet-frame');
+  const card = h('div', { class: 'sheet-card', role: 'dialog', 'aria-modal': 'true' }, content);
+  if (title) { title.id = 'sheet-title'; card.setAttribute('aria-labelledby', 'sheet-title'); }
   sheet.replaceChildren(card);
   sheet.onclick = (e) => { if (e.target === sheet) close(); };
   document.addEventListener('keydown', onKey);
   sheet.hidden = false;
-  card.querySelector('button')?.focus();
+  x.focus({ preventScroll: true });
   return close;
 }
 
