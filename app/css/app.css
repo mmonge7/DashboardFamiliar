@@ -280,14 +280,26 @@ main { padding: calc(env(safe-area-inset-top) + 22px) calc(env(safe-area-inset-r
 .items { list-style: none; margin: 0; padding: 0; }
 .item { border-top: 1px solid var(--line); }
 .item:first-child { border-top: 0; }
-.item button {
-  display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; width: 100%;
+.item { display: flex; align-items: center; gap: 6px; }
+.item .item-main {
+  flex: 1; min-width: 0; display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; width: 100%;
   padding: 12px 0; border: 0; background: none; text-align: left; cursor: pointer; font-size: 1.08rem;
 }
 .check { width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line); display: grid; place-items: center; color: transparent; transition: background .2s, color .2s; }
 .item.done .check { background: var(--cheap); box-shadow: none; color: #fff; }
 .item.done .item-name { text-decoration: line-through; color: var(--ink-muted); }
 .item-detail { display: block; font-size: 0.88rem; color: var(--ink-muted); }
+.aisle { margin-top: 14px; }
+.aisle:first-of-type { margin-top: 6px; }
+.aisle-head { display: flex; align-items: center; gap: 8px; padding: 6px 0 4px; font-family: var(--display); font-weight: 700; font-size: 0.95rem; color: var(--ink-soft); border-bottom: 1.5px solid var(--line); }
+.aisle-head small { margin-left: auto; font-weight: 400; color: var(--ink-muted); }
+.aisle .items .item:first-child { border-top: 0; }
+.aisle-btn { flex: none; border: 0; background: none; cursor: pointer; font-size: 1.1rem; padding: 6px 8px; border-radius: 10px; opacity: .55; }
+.aisle-btn:hover, .aisle-btn:focus-visible { opacity: 1; background: var(--paper); }
+.aisle-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.aisle-pick button { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 0; border-radius: var(--radius-sm); background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line); cursor: pointer; text-align: left; color: var(--ink); font-size: 0.98rem; }
+.aisle-pick button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--accent); font-weight: 700; }
+.aisle-pick span { font-size: 1.2rem; }
 .task-due { font-size: 0.85rem; font-weight: 700; color: var(--accent); }
 .task-due.late { color: var(--dear); }
 .task-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); align-items: baseline; }

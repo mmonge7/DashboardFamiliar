@@ -77,7 +77,8 @@ async function load(opts = {}) {
   if (loading && !opts.force) return loading;
   const job = async (key, fn) => {
     try { state[key] = await fn(opts); } catch (e) { state[key] = { data: state[key]?.data || null, stale: true, error: e }; }
-    const typing = document.activeElement?.tagName === 'INPUT';
+    // No repintar mientras se escribe (se perdería el texto); con la caja vacía, sí (p. ej. tras «Añadir»)
+    const typing = document.activeElement?.tagName === 'INPUT' && document.activeElement.value !== '';
     window.dispatchEvent(new CustomEvent('casa:datos', { detail: { key, state } }));
     const own = { shop: 'compra', menu: 'menu', diet: 'menu' }[key];
     if (!typing && (LIVE.has(currentView()) || own === currentView())) render();

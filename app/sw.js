@@ -1,11 +1,11 @@
 // Service worker: guarda la app para que abra al instante y sin conexión.
 // Los datos (calendario, luz, compra) no pasan por aquí: la app guarda su propia copia.
 // Cambia VERSION en cada publicación para que los dispositivos descarguen la nueva.
-const VERSION = 'casa-v10';
+const VERSION = 'casa-v11';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/store.js', 'js/api.js', 'js/ui.js', 'js/demo.js',
-  'js/data/calendar.js', 'js/data/energy.js', 'js/data/weather.js', 'js/data/shopping.js', 'js/data/tariff.js', 'js/data/menu.js', 'js/data/events.js', 'js/data/diet.js',
+  'js/data/calendar.js', 'js/data/energy.js', 'js/data/weather.js', 'js/data/shopping.js', 'js/data/tariff.js', 'js/data/menu.js', 'js/data/events.js', 'js/data/diet.js', 'js/data/aisles.js',
   'js/views/common.js', 'js/views/today.js', 'js/views/calendar.js', 'js/views/energy.js',
   'js/views/shopping.js', 'js/views/settings.js', 'js/views/menu.js', 'js/views/newEvent.js', 'js/views/diet.js',
   'vendor/ical.min.js',

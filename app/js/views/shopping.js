@@ -1,7 +1,8 @@
 // Compra y tareas de casa. Tocar un producto lo tacha (en Bring!, y de ahí en Alexa); se puede deshacer.
-import { h, toast, statusNote, startOfDay, dayLabel } from '../ui.js';
+import { h, toast, statusNote, startOfDay, dayLabel, openSheet } from '../ui.js';
 import { shoppingList, markBought, addItem } from '../data/shopping.js';
 import { demoBanner } from './common.js';
+import { SECCIONES, SECCION, classify, groupByAisle, setSeccion } from '../data/aisles.js';
 
 function due(vence, now) {
   if (!vence) return null;
@@ -11,11 +12,33 @@ function due(vence, now) {
   return h('span', { class: 'task-due' + (late ? ' late' : '') }, late ? 'Atrasada' : dayLabel(d, now));
 }
 
+let refocus = false; // tras añadir, el cursor sigue en la caja para seguir escribiendo
+
 export function renderShopping(state, rerender, reload) {
   const { now, shop, demo } = state;
   const data = shop?.data;
   const list = shoppingList(data);
   const others = (data?.listas || []).slice(1);
+  const aprendidas = shop?.secciones || {};
+
+  // Cambiar la sección de un producto: se recuerda para la próxima vez (y en todos los dispositivos)
+  const pickAisle = (item) => {
+    const current = classify(item.producto, aprendidas);
+    const choose = async (id) => {
+      close();
+      try {
+        await setSeccion(item.producto, id, aprendidas);
+        toast(`${item.producto}: ${SECCION[id].icono} ${SECCION[id].nombre}. Lo recordaré.`);
+        reload();
+      } catch (e) { toast(`No se pudo guardar: ${e.message}`); }
+    };
+    const close = openSheet(h('div', {},
+      h('h2', {}, item.producto),
+      h('p', { class: 'hint' }, '¿En qué sección del súper está? La app lo recordará para este producto.'),
+      h('div', { class: 'aisle-pick' }, SECCIONES.map((s) => h('button', {
+        type: 'button', 'aria-pressed': String(s.id === current), onclick: () => choose(s.id),
+      }, h('span', {}, s.icono), s.nombre)))));
+  };
 
   const buy = async (item, li) => {
     li.classList.add('done');
@@ -41,23 +64,31 @@ export function renderShopping(state, rerender, reload) {
     try {
       await addItem(v);
       input.value = '';
-      toast(`${v}: añadido`);
+      refocus = true;
+      const sec = SECCION[classify(v, aprendidas)];
+      toast(`${v}: añadido a ${sec.icono} ${sec.nombre}`);
       reload();
     } catch (err) { toast(`No se pudo añadir: ${err.message}`); }
   };
+
+  if (refocus) { refocus = false; setTimeout(() => input.focus({ preventScroll: true }), 0); }
 
   const shopPanel = h('section', { class: 'panel' },
     h('h2', {}, list?.nombre || 'Lista de la compra'),
     h('form', { class: 'add-row', onsubmit: submit }, input, h('button', { type: 'submit', class: 'btn' }, 'Añadir')),
     !list ? h('p', { class: 'empty' }, shop ? 'No se pudo cargar la lista.' : 'Cargando la lista…')
       : list.items.length === 0 ? h('p', { class: 'empty' }, 'No falta nada. Añade lo que se acabe o díselo a Alexa.')
-        : h('ul', { class: 'items' }, list.items.map((item) => {
-          const li = h('li', { class: 'item' });
-          li.append(h('button', { type: 'button', onclick: () => buy(item, li), 'aria-label': `Tachar ${item.producto}` },
-            h('span', { class: 'check', 'aria-hidden': 'true' }, '✓'),
-            h('span', {}, h('span', { class: 'item-name' }, item.producto), item.detalle && h('span', { class: 'item-detail' }, item.detalle))));
-          return li;
-        })),
+        : groupByAisle(list.items, aprendidas).map((g) => h('div', { class: 'aisle' },
+          h('h3', { class: 'aisle-head' }, h('span', { 'aria-hidden': 'true' }, g.icono), g.nombre, h('small', {}, g.items.length)),
+          h('ul', { class: 'items' }, g.items.map((item) => {
+            const li = h('li', { class: 'item' });
+            li.append(
+              h('button', { type: 'button', class: 'item-main', onclick: () => buy(item, li), 'aria-label': `Tachar ${item.producto}` },
+                h('span', { class: 'check', 'aria-hidden': 'true' }, '✓'),
+                h('span', {}, h('span', { class: 'item-name' }, item.producto), item.detalle && h('span', { class: 'item-detail' }, item.detalle))),
+              h('button', { type: 'button', class: 'aisle-btn', onclick: () => pickAisle(item), 'aria-label': `Cambiar la sección de ${item.producto}`, title: 'Cambiar de sección' }, '⇄'));
+            return li;
+          })))),
     data?.frecuentes?.length ? [
       h('p', { class: 'note' }, 'Lo que más se pide y no está en la lista:'),
       h('div', { class: 'habituales' }, data.frecuentes.map((f) => h('button', {

@@ -4,16 +4,19 @@
 import { server, cached } from '../api.js';
 import { isDemo, cacheGet, cachePut } from '../store.js';
 import { demoShopping } from '../demo.js';
+import { loadAprendidas } from './aisles.js';
 
 const MAX_AGE = 60000;
 let demoState = null; // en demostración los cambios viven solo en memoria
 
 export async function loadShopping({ force = false } = {}) {
+  const secciones = loadAprendidas({ force }).catch(() => ({}));
   if (isDemo()) {
     demoState ??= demoShopping();
-    return { data: structuredClone(demoState), demo: true, at: Date.now() };
+    return { data: structuredClone(demoState), demo: true, at: Date.now(), secciones: await secciones };
   }
-  return cached('compra', MAX_AGE, () => server('compra'), { force });
+  const [res, apr] = await Promise.all([cached('compra', MAX_AGE, () => server('compra'), { force }), secciones]);
+  return { ...res, secciones: apr };
 }
 
 /** La lista que se puede tocar (Bring!): la primera de «listas», o «items» en servidores antiguos. */
