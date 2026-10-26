@@ -1,7 +1,6 @@
 // Calendario de pared: cinco semanas de lunes a domingo, con el tiempo de cada día cuando se conoce.
 import { h, time, cap, monthYear, addDays, startOfWeek, startOfDay, sameDay, longDay, openSheet, statusNote } from '../ui.js';
 import { eventsOn } from '../data/calendar.js';
-import { describe } from '../data/weather.js';
 import { eventRow, showEvent, demoBanner } from './common.js';
 import { openNewEvent } from './newEvent.js';
 import { getSettings, saveSettings } from '../store.js';
@@ -34,7 +33,7 @@ function dayList(day, list, now) {
 }
 
 export function renderCalendar(state, rerender, reload) {
-  const { now, cal, weather, demo, tipos } = state;
+  const { now, cal, demo, tipos } = state;
   const all = cal?.data?.events || [];
   const events = all.filter((e) => !hidden.has(e.tipo?.id || '-'));
   const colorPor = state.settings.colorPor || 'tipo';
@@ -45,8 +44,6 @@ export function renderCalendar(state, rerender, reload) {
   const calendars = cal?.data?.calendars || [];
   const first = addDays(startOfWeek(now), offset * 7);
   const days = Array.from({ length: WEEKS * 7 }, (_, i) => addDays(first, i));
-  const fc = new Map((weather?.data?.days || []).map((d) => [d.date, d]));
-  const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   const go = (delta) => { offset = Math.max(-1, Math.min(2, offset + delta)); rerender(); };
 
@@ -77,7 +74,6 @@ export function renderCalendar(state, rerender, reload) {
       DOW.map((d) => h('div', { class: 'wall-head', role: 'columnheader' }, d)),
       days.map((d) => {
         const list = eventsOn(events, d);
-        const w = fc.get(key(d));
         const cls = ['wall-cell'];
         if (sameDay(d, now)) cls.push('is-today');
         if (d < startOfDay(now)) cls.push('other'); // días ya pasados, más apagados
@@ -87,7 +83,7 @@ export function renderCalendar(state, rerender, reload) {
           // Tocar el hueco libre de un día crea un evento ese día
           onclick: (e) => { if (e.target === e.currentTarget && d >= startOfDay(now)) openNewEvent(d, tipos); },
         },
-          h('div', { class: 'wall-num' }, h('b', {}, d.getDate()), w && h('small', { title: describe(w.code).text }, `${describe(w.code).icon} ${Math.round(w.max)}°`)),
+          h('div', { class: 'wall-num' }, h('b', {}, d.getDate())),
           shown.map(chip),
           list.length > MAX_CHIPS && h('button', { type: 'button', class: 'chip-more', style: { border: 0, background: 'none', textAlign: 'left', cursor: 'pointer' }, onclick: () => dayList(d, list, now) }, `y ${list.length - MAX_CHIPS} más`));
       })),
